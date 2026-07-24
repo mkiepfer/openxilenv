@@ -14,3 +14,6 @@ __pycache__
 build-*/
 inst-*/
 cmake-build-*/
+
+# Config file written as a side effect of running the unit tests
+xilenv_unittest.ini
