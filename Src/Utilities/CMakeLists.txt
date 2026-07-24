@@ -24,7 +24,5 @@ if(${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
         ConfigurablePrefix.c
     )
 
-    target_sources(XilEnv  PRIVATE ${CommonFileList})
-
-    target_sources(XilEnvGui PRIVATE ${CommonFileList})
+    target_sources(xilenv_core PRIVATE ${CommonFileList})
 endif()

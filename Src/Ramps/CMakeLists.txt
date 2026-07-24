@@ -1,7 +1,3 @@
-target_sources(XilEnv PUBLIC
-    RampsSingle.c  RampsSplitCompiler.c
-)
-
-target_sources(XilEnvGui PUBLIC
+target_sources(xilenv_core PRIVATE
     RampsSingle.c  RampsSplitCompiler.c
 )

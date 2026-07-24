@@ -78,7 +78,12 @@ jobs:
         cd $GITHUB_WORKSPACE/openxilenv-build
         cmake --build .
 
-    - name: Install OpenXilEnv 
+    - name: Run C-core unit tests (CTest)
+      run: |
+        cd $GITHUB_WORKSPACE/openxilenv-build
+        ctest --output-on-failure
+
+    - name: Install OpenXilEnv
       run: |
         cd $GITHUB_WORKSPACE/openxilenv-build
         cmake --install .
@@ -159,6 +164,10 @@ jobs:
     - name: Build OpenXilEnv
       shell: cmd
       run: cmake --build %GITHUB_WORKSPACE%\openxilenv-build
+
+    - name: Run C-core unit tests (CTest)
+      shell: cmd
+      run: ctest --test-dir %GITHUB_WORKSPACE%\openxilenv-build --output-on-failure
 
     - name: Install OpenXilEnv
       shell: cmd

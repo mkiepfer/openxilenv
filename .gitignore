@@ -9,3 +9,8 @@ dist/
 .venv
 .vscode
 __pycache__
+
+# CMake out-of-source build / install trees
+build-*/
+inst-*/
+cmake-build-*/

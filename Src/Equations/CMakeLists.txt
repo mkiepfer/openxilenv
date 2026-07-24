@@ -3,6 +3,4 @@ set(CommonFileList
     EquationsSplitCompiler.c
 )
 
-target_sources(XilEnv  PRIVATE ${CommonFileList})
-
-target_sources(XilEnvGui PRIVATE ${CommonFileList})
+target_sources(xilenv_core PRIVATE ${CommonFileList})

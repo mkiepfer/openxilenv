@@ -25,18 +25,15 @@ if(${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
         CheckIfAlreadyRunning.c
         RunTimeMeasurement.c
         InitProcess.c
-        ParseCommandLine.c
         StartExeAndWait.c
         Compare2DoubleEqual.c
         MainValues.c
         Platform.c
-        StartupInit.c
         UtilsWindow.c
         EnvironmentVariables.c
         ImExportDskFile.c
         Message.c
         ReadConfig.c
-        ThrowError.c
         Fifos.c
         ImExportVarProperties.c
         MyMemory.c
@@ -49,7 +46,16 @@ if(${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
         UniqueNumber.c
         WindowIniHelper.c)
 
-    target_sources(XilEnv PRIVATE ${CmmonFileList})
+    target_sources(xilenv_core PRIVATE ${CmmonFileList})
 
-    target_sources(XilEnvGui PRIVATE ${CmmonFileList})
+    # NO_GUI-dependent border files: compiled per front-end with that
+    # front-end's NO_GUI state (see the XILENV CORE note in the top-level
+    # CMakeLists.txt). ThrowError.c is used pervasively by the core, so the
+    # core library carries an undefined reference resolved by the front-end.
+    set(XilEnvBorderFileList
+        ParseCommandLine.c
+        StartupInit.c
+        ThrowError.c)
+    target_sources(XilEnv PRIVATE ${XilEnvBorderFileList})
+    target_sources(XilEnvGui PRIVATE ${XilEnvBorderFileList})
 endif()

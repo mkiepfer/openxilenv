@@ -20,6 +20,4 @@ if (BUILD_WITH_PDB_READER_DLL_INTERFACE)
     )
 endif()
 
-target_sources(XilEnv PRIVATE ${CommonFileList})
-
-target_sources(XilEnvGui PRIVATE ${CommonFileList})
+target_sources(xilenv_core PRIVATE ${CommonFileList})

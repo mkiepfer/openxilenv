@@ -2,7 +2,6 @@ set(CommonFileList
     A2LAccess.c
     A2LBuffer.c
     A2LConvert.c
-    A2LLink.c
     A2LParser.c
     A2LRecordLayout.c
     A2LTokenizer.c
@@ -16,6 +15,9 @@ set(CommonFileList
     S19BinFile.c
 )
 
-target_sources(XilEnv PRIVATE ${CommonFileList})
+target_sources(xilenv_core PRIVATE ${CommonFileList})
 
-target_sources(XilEnvGui  PRIVATE ${CommonFileList})
+# NO_GUI-dependent border file: compiled per front-end with that front-end's
+# NO_GUI state (see the XILENV CORE note in the top-level CMakeLists.txt).
+target_sources(XilEnv PRIVATE A2LLink.c)
+target_sources(XilEnvGui PRIVATE A2LLink.c)

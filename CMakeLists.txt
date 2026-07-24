@@ -81,6 +81,71 @@ else()
     if(${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
         message("Build XilEnv, XilEnvGui and XilEnvRpc")
 
+        ########################################################################
+        #                              XILENV CORE                             #
+        #                                                                      #
+        # Shared static core library: all of Src/* except GUI/*. Built ONCE    #
+        # and linked by XilEnv (headless), XilEnvGui (Qt) and the unit tests   #
+        # (xilenv_core_tests), replacing the previous "compile every source    #
+        # into every executable" (target_sources(XilEnv ...) +                #
+        # target_sources(XilEnvGui ...)) pattern.                              #
+        #                                                                      #
+        # NOTE: the four NO_GUI-dependent border files (ThrowError.c,          #
+        # A2LLink.c, StartupInit.c, ParseCommandLine.c) are NOT part of the    #
+        # core; they are compiled per front-end with that front-end's NO_GUI   #
+        # state, because the core is compiled only once and cannot carry both  #
+        # variants.                                                            #
+        ########################################################################
+
+        add_library(xilenv_core STATIC)
+        target_include_directories(xilenv_core PUBLIC
+            Src/A2lParser
+            Src/Blackboard
+            Src/CanDataBase
+            Src/CanServer
+            Src/CanServer/J1939
+            Src/DebugInfos
+            Src/Equations
+            Src/ExternalProcess
+            Src/Global
+            Src/IniFileDataBase
+            Src/Ramps
+            Src/RemoteMaster
+            Src/RemoteMaster/Client
+            Src/RpcInterface
+            Src/Scheduler
+            Src/Script
+            Src/StimulusPlayer
+            Src/TraceRecorder
+            Src/Utilities
+            Src/XcpOverEthernet)
+        # The core calls the GUI/core-seam ABI (MainWinowSyncWithOtherThreads.h)
+        # and a few window declarations. It is compiled ONCE, so it uses the
+        # GUI-free Console variant of these headers (declarations only); the
+        # real implementation is linked in by whichever front-end (Qt/Console)
+        # or the unit tests provide it. PRIVATE so the Console headers do not
+        # leak into the Qt GUI's include path.
+        target_include_directories(xilenv_core PRIVATE Src/GUI/Console)
+        target_compile_definitions(xilenv_core PUBLIC _M_X64)
+        if(BUILD_WITH_J1939_SUPPORT)
+            target_compile_definitions(xilenv_core PUBLIC BUILD_WITH_J1939_SUPPORT)
+        endif()
+        if(BUILD_WITH_GATEWAY_VIRTUAL_CAN)
+            target_compile_definitions(xilenv_core PUBLIC BUILD_WITH_GATEWAY_VIRTUAL_CAN)
+        endif()
+        if(BUILD_WITH_PDB_READER_DLL_INTERFACE)
+            target_compile_definitions(xilenv_core PUBLIC BUILD_WITH_PDB_READER_DLL_INTERFACE)
+        endif()
+        if(WIN32)
+            if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+                target_compile_options(xilenv_core PRIVATE /wd5105)
+            elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+                target_compile_definitions(xilenv_core PUBLIC WINVER=0x0602)
+                target_compile_definitions(xilenv_core PUBLIC _WIN32_WINNT=0x0602)
+                target_compile_definitions(xilenv_core PUBLIC __STDC_FORMAT_MACROS)
+            endif()
+        endif()
+
         find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
         find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
@@ -153,6 +218,7 @@ else()
             target_compile_definitions(XilEnvGui PUBLIC BUILD_WITH_PDB_READER_DLL_INTERFACE)
         endif()
 
+        target_link_libraries(XilEnvGui PRIVATE xilenv_core)
         target_link_libraries(XilEnvGui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
         if(Qt${QT_VERSION_MAJOR}Svg_FOUND)
             message ("Svg supported")
@@ -185,6 +251,7 @@ else()
         #
 
         add_executable(XilEnv)
+        target_link_libraries(XilEnv PRIVATE xilenv_core)
         target_include_directories(XilEnv PRIVATE
             Src/A2lParser
             Src/Blackboard
@@ -411,6 +478,19 @@ else()
         add_subdirectory(Tools)
     endif()
     add_subdirectory(Samples)
+
+    ############################################################################
+    #                              UNIT TESTS                                  #
+    #                                                                          #
+    # C-core unit / characterization tests (GoogleTest + GMock, driven by      #
+    # CTest). Provides the regression net for the Qt -> ImGui migration. Only  #
+    # for the 64-bit non-examples build, where xilenv_core exists.             #
+    ############################################################################
+    option(XILENV_BUILD_TESTS "Build the C-core unit tests (GoogleTest + CTest)" ON)
+    if(XILENV_BUILD_TESTS AND ${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
+        enable_testing()
+        add_subdirectory(test/unit)
+    endif()
 
     if(${MY_CMAKE_SIZEOF_VOID_P} GREATER 4)
         install(TARGETS XilEnvGui XilEnv XilEnvRpc
