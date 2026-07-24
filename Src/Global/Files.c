@@ -64,14 +64,11 @@ static void LogFileAccessNoC (const char *Filename)
     static FILE *fh;
     char FullPath[MAX_PATH];
      
-#ifdef _WIN32
-    if (_fullpath (FullPath, Filename, MAX_PATH) == NULL) {
-        strncpy (FullPath, Filename, MAX_PATH);
-        FullPath[MAX_PATH-1] = 0;
+    // expand_filename canonicalizes into a PATH_MAX buffer and copies back truncated,
+    // avoiding the _FORTIFY_SOURCE abort of realpath() writing into a MAX_PATH buffer.
+    if (expand_filename (Filename, FullPath, sizeof(FullPath)) != 0) {
+        StringCopyMaxCharTruncate (FullPath, Filename, sizeof(FullPath));
     }
-#else
-    realpath (Filename, FullPath);
-#endif
 
     if (fh == NULL) {
         fh = fopen (s_main_ini_val.LogFileForAccessedFilesName, "wt");

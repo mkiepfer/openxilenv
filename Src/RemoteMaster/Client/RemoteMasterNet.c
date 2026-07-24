@@ -532,7 +532,13 @@ int InitRemoteMaster(char *par_RemoteMasterAddr, int par_RemoteMasterPort)
         if (p == NULL) p = SharedLibrarySrcPath + strlen(SharedLibrarySrcPath);
         StringCopyMaxCharTruncate(p, "\\rt_linux\\libLinuxRemoteMasterCore.so", sizeof(SharedLibrarySrcPath) - (p - SharedLibrarySrcPath));
 #else
-        readlink("/proc/self/exe", SharedLibrarySrcPath, sizeof (SharedLibrarySrcPath));
+        // readlink() neither null-terminates nor reports errors via the buffer, so terminate
+        // explicitly before strrchr()/strlen() read past the path into uninitialized memory.
+        ssize_t SrcPathLen = readlink("/proc/self/exe", SharedLibrarySrcPath, sizeof (SharedLibrarySrcPath) - 1);
+        if (SrcPathLen < 0) {
+            SrcPathLen = 0;
+        }
+        SharedLibrarySrcPath[SrcPathLen] = 0;
         p = strrchr (SharedLibrarySrcPath, '/');
         if (p == NULL) p = SharedLibrarySrcPath + strlen(SharedLibrarySrcPath);
         StringCopyMaxCharTruncate(p, "/rt_linux/libLinuxRemoteMasterCore.so", sizeof(SharedLibrarySrcPath) - (p - SharedLibrarySrcPath));

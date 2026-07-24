@@ -300,7 +300,14 @@ int SearchAndReplaceEnvironmentStringsExt (const char *src, char *dest, int maxc
 #ifdef _WIN32
                 Size = GetModuleFileName (GetModuleHandle(NULL), EnvVarValue, sizeof (EnvVarValue));
 #else
-                Size = readlink("/proc/self/exe", EnvVarValue, sizeof (EnvVarValue));
+                // readlink() does not null-terminate and returns -1 on error, so terminate
+                // explicitly at the reported length; otherwise the scan below runs past the
+                // path into uninitialized stack memory and corrupts the resolved directory.
+                Size = (int)readlink("/proc/self/exe", EnvVarValue, sizeof (EnvVarValue) - 1);
+                if (Size < 0) {
+                    Size = 0;
+                }
+                EnvVarValue[Size] = 0;
 #endif
                 h = EnvVarValue;
                 while (*h != 0) h++;

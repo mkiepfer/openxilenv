@@ -587,7 +587,12 @@ static NEW_CAN_SERVER_CONFIG *SetInitDataOfCANObject (NEW_CAN_SERVER_CONFIG *csc
                                                       int o_pos,
                                                       char *InitDataString)
 {
+    // ResetDataBitsValue() may access up to 4 bytes beyond the object size, so the init data
+    // stored in the config is always reserved this much larger. The source buffer must reserve
+    // the same padding, otherwise copying InitBytesSize bytes reads past the alloca allocation.
+    const int InitBytesPadding = 4;
     unsigned char *InitBytes;
+    int InitBytesSize;
     int HelpIdx;
     int Size;
     uint64_t Help_u64;
@@ -597,8 +602,9 @@ static NEW_CAN_SERVER_CONFIG *SetInitDataOfCANObject (NEW_CAN_SERVER_CONFIG *csc
     Size = csc->objects[o_pos].size;
     if (Size < 8) Size = 8;
 
-    InitBytes = _alloca ((size_t)Size);
-    MEMSET (InitBytes, 0, (size_t)Size);
+    InitBytesSize = Size + InitBytesPadding;
+    InitBytes = _alloca ((size_t)InitBytesSize);
+    MEMSET (InitBytes, 0, (size_t)InitBytesSize);
 
 #ifdef _WIN32
     Help_u64  = _strtoui64 (InitDataString, NULL, 0);
@@ -616,7 +622,7 @@ static NEW_CAN_SERVER_CONFIG *SetInitDataOfCANObject (NEW_CAN_SERVER_CONFIG *csc
             InitBytes[x] = Help_u8;
         }
     }
-    csc = AddByteCode2CanCfg (csc, &HelpIdx, (char*)InitBytes, Size + 4);  // Always 3 bytelarger as neccessary because of ResetDataBitsValue()
+    csc = AddByteCode2CanCfg (csc, &HelpIdx, (char*)InitBytes, InitBytesSize);
     csc->objects[o_pos].InitDataIdx = HelpIdx;
 
     return csc;
