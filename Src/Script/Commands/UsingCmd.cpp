@@ -21,6 +21,7 @@
 
 extern "C" {
 #include "MyMemory.h"
+#include "Files.h"
 }
 
 #include "Parser.h"
@@ -64,7 +65,7 @@ int cUsingCmd::SyntaxCheck (cParser *par_Parser)
     }
     CloseHandle (hFile);
 #else
-    if (realpath(par_Parser->GetParameter (0), FilePath) == nullptr) {
+    if (expand_filename (par_Parser->GetParameter (0), FilePath, sizeof(FilePath)) != 0) {
         par_Parser->Error (SCRIPT_PARSER_FATAL_ERROR, "cannot open file \"%s\"", par_Parser->GetParameter (0));
         return -1;
     }

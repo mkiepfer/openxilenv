@@ -32,6 +32,7 @@
 #include "ThrowError.h"
 #include "MainValues.h"
 #include "FileExtensions.h"
+#include "Files.h"
 #include "IniDataBase.h"
 #include "ParseCommandLine.h"
 #include "IniFileDontExist.h"
@@ -69,15 +70,13 @@ void AddIniFileToHistory (char *par_IniFile)
     int x, xx, NumOfEntrys;
     const char *ProgramName = GetConfigurablePrefix(CONFIGURABLE_PREFIX_TYPE_PROGRAM_NAME);
 
-#ifdef _WIN32
-    if (GetFullPathName (par_IniFile, sizeof(FullPath), FullPath, NULL) == 0) {
+    // expand_filename resolves the path into a PATH_MAX-sized buffer internally and
+    // truncates safely into FullPath, so it never overflows the MAX_PATH destination
+    // (a direct realpath() into FullPath aborts under _FORTIFY_SOURCE because glibc
+    // requires the resolved buffer to be at least PATH_MAX bytes).
+    if (expand_filename (par_IniFile, FullPath, sizeof(FullPath)) != 0) {
         STRING_COPY_TO_ARRAY(FullPath, par_IniFile);
     }
-#else
-    if(realpath (par_IniFile, FullPath) == NULL) {
-        STRING_COPY_TO_ARRAY(FullPath, par_IniFile);
-    }
-#endif
 
     if (!OpenWithNoGui() && (par_IniFile != NULL) && strlen (par_IniFile)) {
         int Fd;
