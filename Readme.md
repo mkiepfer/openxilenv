@@ -45,6 +45,62 @@ An example can be found in `Samples/ExternalProcesses/ExtProc_Simple`.
 
 For an overview of the software components and how the **XilEnvGui** and **XilEnv** executables are built up from the modules under `Src/`, including component diagrams, see the [Architecture documentation](docs/ARCHITECTURE.md).
 
+## Installation
+
+The build installs **XilEnv** (CLI) and **XilEnvGui** together with all
+associated shared libraries (`XilEnvRpc`, `XilEnvExtProc64`, …), the external
+process headers and the user guide into a single directory. The target
+directory is controlled by `CMAKE_INSTALL_PREFIX`, so you can install
+everything into a local, user-writable location such as `~/.local` without root
+privileges.
+
+### Linux
+
+Configure the build with a local install prefix, build, and install:
+
+```bash
+# Configure with a local install prefix (no root required)
+cmake -G Ninja -DCMAKE_INSTALL_PREFIX="$HOME/.local/openxilenv" -S . -B build
+
+# Build
+cmake --build build --parallel $(nproc)
+
+# Install XilEnv, XilEnvGui and all shared libraries into the prefix
+cmake --install build
+```
+
+The executables and shared libraries are placed flat inside the prefix
+(e.g. `~/.local/openxilenv/XilEnvGui`, `~/.local/openxilenv/XilEnv`,
+`~/.local/openxilenv/XilEnvRpc.so`, …).
+
+To run the installed binaries from anywhere, add the install directory to your
+`PATH` and `LD_LIBRARY_PATH`:
+
+```bash
+export PATH="$HOME/.local/openxilenv:$PATH"
+export LD_LIBRARY_PATH="$HOME/.local/openxilenv:$LD_LIBRARY_PATH"
+```
+
+To make this permanent, append the two lines above to your `~/.bashrc`.
+
+> **Note:** The install layout is flat (all executables and libraries live
+> directly in the prefix, there is no `bin/` or `lib/` split). Using a dedicated
+> subdirectory such as `~/.local/openxilenv` therefore keeps `~/.local` tidy and
+> is the recommended approach.
+
+### Windows
+
+```cmd
+cmake -G Ninja -DCMAKE_INSTALL_PREFIX="%LOCALAPPDATA%\openxilenv" -S . -B build
+cmake --build build
+cmake --install build
+```
+
+Add `%LOCALAPPDATA%\openxilenv` to your `PATH` to run the tools from anywhere.
+
+For more build options (FMU support, examples, 32-bit libraries, …) see the
+platform build guides: [Windows](docs/WINDOWS_BUILD.md) | [Linux](docs/LINUX_BUILD.md).
+
 ## Setting up Your Project
 
 - [Setup an External Process](docs/EXTERNAL_PROCESS_SETUP.md)
