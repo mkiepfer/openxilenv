@@ -237,6 +237,22 @@ void RemoveBinaryHashKey(int32_t p1, int32_t p2)
     }
     HashIndex->Pos--;
 
+    // If the block is now empty it must be dropped from the master index. The
+    // merge logic below only relocates entries into a neighbouring block and
+    // never fires for a sole (p1 == 0) block, which would otherwise leave a
+    // stale empty block whose Hash[0]/Indexes[0] still reference the removed
+    // variable. A subsequent lookup would then match that stale hash and
+    // dereference a dangling blackboard index.
+    if (HashIndex->Pos == 0) {
+        my_free(HashIndex);
+        for (x = p1; x < (MasterHashIndex.Pos - 1); x++) {
+            MasterHashIndex.Elems[x].Hash = MasterHashIndex.Elems[x + 1].Hash;
+            MasterHashIndex.Elems[x].Indexes = MasterHashIndex.Elems[x + 1].Indexes;
+        }
+        MasterHashIndex.Pos--;
+        return;
+    }
+
     // If less than 16 entrys try to merge the hash tabele.
     if (HashIndex->Pos < 16) {
         if (p1 > 0) {
@@ -317,9 +333,8 @@ int InitMasterHashTable(int BlackboardSize)
 int CloseMasterHashTable(void)
 {
     int32_t x;
-    HASH_INDEXES_ELEM *e = MasterHashIndex.Elems;
     for (x = 0; x < MasterHashIndex.Pos; x++) {
-        if (e->Indexes != NULL) my_free(e->Indexes);
+        if (MasterHashIndex.Elems[x].Indexes != NULL) my_free(MasterHashIndex.Elems[x].Indexes);
     }
     my_free(MasterHashIndex.Elems);
     MasterHashIndex.Elems = NULL;
