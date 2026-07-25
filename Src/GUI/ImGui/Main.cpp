@@ -15,6 +15,7 @@
 #include "MainWinowSyncWithOtherThreads.h"
 
 #include "Framework/A2LCalBridge.h"
+#include "Framework/BlackboardDialogs.h"
 #include "Framework/BusConfigDialogs.h"
 #include "Framework/ControlDialogs.h"
 #include "Framework/ConversionDialogs.h"
@@ -138,6 +139,23 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             {
                 XilEnvImGui::ConversionDialogManager::GetInstance().OpenPicker();
             }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Blackboard variable info..."))
+            {
+                XilEnvImGui::BlackboardDialogManager::GetInstance().OpenBlackboardInfo(nullptr);
+            }
+            if (ImGui::MenuItem("Blackboard access..."))
+            {
+                XilEnvImGui::BlackboardDialogManager::GetInstance().OpenBlackboardAccess();
+            }
+            if (ImGui::MenuItem("Internal blackboard view..."))
+            {
+                XilEnvImGui::BlackboardDialogManager::GetInstance().OpenBlackboardInternal();
+            }
+            if (ImGui::MenuItem("Global section filter..."))
+            {
+                XilEnvImGui::BlackboardDialogManager::GetInstance().OpenGlobalSectionFilter();
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Control"))
@@ -242,6 +260,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Signal-conversion editor dialogs (dispatcher plus type-specific sub-editors).
     XilEnvImGui::ConversionDialogManager::GetInstance().Render();
+
+    // Blackboard/variable dialogs (info, access, internal view, section filter, add-filter, value ops).
+    XilEnvImGui::BlackboardDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
