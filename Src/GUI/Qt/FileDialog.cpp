@@ -25,6 +25,7 @@ extern "C" {
 #include "StringMaxChar.h"
 #include "PrintFormatToString.h"
 #include "IniDataBase.h"
+#include "IniSectionEntryDefines.h"
 #include "MainValues.h"
 }
 
@@ -56,7 +57,7 @@ QString FileDialog::getOpenFileName(QWidget *parent,
 
     if (dir.isEmpty() && !filter.isEmpty() && (filter.size() < (sizeof(Entry) - 32))) {
         PrintFormatToString (Entry, sizeof(Entry), "Last Directory for %s", QStringToConstChar(filter));
-        if (IniFileDataBaseReadString ("BasicSettings", Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
+        if (IniFileDataBaseReadString (OPT_GUI_SECTION, Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
             STRING_COPY_TO_ARRAY (StartDirString, s_main_ini_val.WorkDir);
         }
         StartDir = QString(StartDirString);
@@ -77,7 +78,7 @@ QString FileDialog::getOpenFileName(QWidget *parent,
         }
         QString FileDir = RemoveFileName(Ret);
         PrintFormatToString (Entry, sizeof(Entry), "Last Directory for %s", QStringToConstChar(filter));
-        IniFileDataBaseWriteString ("BasicSettings", Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
 
     }
     return Ret;
@@ -95,7 +96,7 @@ QString FileDialog::getOpenNewOrExistingFileName(QWidget *parent,
 
     if (dir.isEmpty()) {
         PrintFormatToString (Entry, sizeof(Entry), "Last Directory for %s", QStringToConstChar(filter));
-        if (IniFileDataBaseReadString ("BasicSettings", Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
+        if (IniFileDataBaseReadString (OPT_GUI_SECTION, Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
             STRING_COPY_TO_ARRAY (StartDirString, s_main_ini_val.WorkDir);
         }
         StartDir = QString(StartDirString);
@@ -118,7 +119,7 @@ QString FileDialog::getOpenNewOrExistingFileName(QWidget *parent,
             }
             QString FileDir = RemoveFileName(Ret);
             PrintFormatToString (Entry, sizeof(Entry), "Last Directory for %s", QStringToConstChar(filter));
-            IniFileDataBaseWriteString ("BasicSettings", Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
+            IniFileDataBaseWriteString (OPT_GUI_SECTION, Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
             if (ret_Exists != nullptr) {
                 QFile File(Ret);
                 *ret_Exists = File.exists();
@@ -139,7 +140,7 @@ QString FileDialog::getSaveFileName(QWidget *parent,
 
     if (dir.isEmpty()) {
         PrintFormatToString (Entry, sizeof(Entry), "Last Directory for %s", QStringToConstChar(filter));
-        if (IniFileDataBaseReadString ("BasicSettings", Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
+        if (IniFileDataBaseReadString (OPT_GUI_SECTION, Entry, "", StartDirString, sizeof(StartDirString), GetMainFileDescriptor()) <= 0) {
             STRING_COPY_TO_ARRAY (StartDirString, s_main_ini_val.WorkDir);
         }
         StartDir = QString(StartDirString);
@@ -160,7 +161,7 @@ QString FileDialog::getSaveFileName(QWidget *parent,
             Ret = Dir.relativeFilePath(Ret);
         }
         QString FileDir = RemoveFileName(Ret);
-        IniFileDataBaseWriteString ("BasicSettings", Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, Entry, QStringToConstChar(FileDir), GetMainFileDescriptor());
     }
     return Ret;
 }

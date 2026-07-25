@@ -13,6 +13,18 @@ W4 = 'Analog Pins'
 W6 = 'Simulation'
 W8 = 'PinModes'
 
+['GUI/BasicSettings']
+ControlpanelXpos = '-1920'
+ControlpanelYpos = '0'
+DarkMode = 'yes'
+HideControlPanel = 'yes'
+OscilloscopeDefaultBufferDepth = '16384'
+SelectedControl = 'Script'
+SelectedSheet = 'Default'
+maximized = '1'
+xdim = '1368'
+ydim = '874'
+
 ['GUI/OpenWindowsForSheet0']
 SheetName = 'Default'
 W0 = 'LED Control Lamp'

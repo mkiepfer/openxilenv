@@ -32,6 +32,9 @@
 #define SCHED_PERIODE_DEF   "0.01"
 
 #define OPT_SECTION         "BasicSettings"
+// GUI/window state keys are stored in a GUI/-prefixed section so the ini-database
+// facade routes them into the layout file instead of the engine config.
+#define OPT_GUI_SECTION     "GUI/BasicSettings"
 #define OPT_PROJECT_TEXT    "ProjectName"
 #define OPT_PROJECT_DEF     "DefaultTitle"
 #define OPT_WORKDIR_TEXT    "WorkDir"
