@@ -10,6 +10,7 @@
 
 #include "Platform.h"
 
+#include "Framework/DialogManager.h"
 #include "Framework/WindowManagerBridge.h"
 
 extern "C" {
@@ -88,7 +89,6 @@ std::deque<GuiCommand> g_queue;     /*!< Pending commands, drained per frame. */
 WaitSlot g_waitSlots[MAX_WAIT_SLOTS];
 int g_guiThreadId{-1};
 std::atomic<int> g_syncInitAndRunning{0};
-int g_progressBarIdCounter{0};
 
 int CurrentThreadId()
 {
@@ -208,10 +208,27 @@ int ExecuteCommand(GuiCommand &par_Command)
     case GuiCommandType::RenameSheet:
         return XilEnvImGui::WmRenameSheet(par_Command.arg0.c_str(), par_Command.arg1.c_str());
 
+    case GuiCommandType::AddNewScriptErrorMessage:
+        // Surface script-interpreter errors/warnings in the message log.
+        XilEnvImGui::DialogManager::GetInstance().AddScriptErrorMessage(
+            par_Command.intArg0, 0, par_Command.arg0.c_str(), par_Command.arg1.c_str());
+        return 0;
+
+    case GuiCommandType::ScriptCreateDialog:
+        return XilEnvImGui::DialogManager::GetInstance().ScriptCreateDialog(par_Command.arg0.c_str());
+
+    case GuiCommandType::ScriptAddDialogItem:
+        return XilEnvImGui::DialogManager::GetInstance().ScriptAddDialogItem(par_Command.arg0.c_str(),
+                                                                             par_Command.arg1.c_str());
+
+    case GuiCommandType::ScriptShowDialog:
+        return XilEnvImGui::DialogManager::GetInstance().ScriptShowDialog();
+
+    case GuiCommandType::ScriptDestroyDialog:
+        return XilEnvImGui::DialogManager::GetInstance().ScriptDestroyDialog();
+
     case GuiCommandType::IsScriptDialogClosed:
-        // No script dialog exists yet: report "closed" so a polling script
-        // never blocks waiting for a window that will never open.
-        return 1;
+        return XilEnvImGui::DialogManager::GetInstance().IsScriptDialogClosed();
 
     case GuiCommandType::RemoteProcedureCall:
         return RemoteProcedureDecodeMessage(static_cast<RPC_CONNECTION *>(par_Command.ptr0),
@@ -504,29 +521,24 @@ void StopOscilloscopeFromOtherThread(void *par_OscilloscopeWidget, uint64_t par_
 }
 
 // -------------------------------------------------------------------------
-// Immediate (non-queued) progress-bar functions - no ack in the ABI
+// Immediate (non-queued) progress-bar functions - no ack in the ABI.
+// These are fire-and-forget: they mutate the mutex-guarded DialogManager model
+// directly (from the scheduler/script thread); the render thread draws it.
 // -------------------------------------------------------------------------
 
 int OpenProgressBarFromOtherThread(const char *par_ProgressName)
 {
-    (void)par_ProgressName;
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (0x7FFF <= ++g_progressBarIdCounter)
-    {
-        g_progressBarIdCounter = 1;
-    }
-    return g_progressBarIdCounter;
+    return XilEnvImGui::DialogManager::GetInstance().OpenProgressBar(par_ProgressName);
 }
 
 void SetProgressBarFromOtherThread(int par_ProgressBarID, int par_Value)
 {
-    (void)par_ProgressBarID;
-    (void)par_Value;
+    XilEnvImGui::DialogManager::GetInstance().SetProgressBar(par_ProgressBarID, par_Value);
 }
 
 void CloseProgressBarFromOtherThread(int par_ProgressBarID)
 {
-    (void)par_ProgressBarID;
+    XilEnvImGui::DialogManager::GetInstance().CloseProgressBar(par_ProgressBarID);
 }
 
 // -------------------------------------------------------------------------

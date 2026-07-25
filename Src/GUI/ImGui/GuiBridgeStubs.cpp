@@ -3,6 +3,8 @@
 
 #include "Platform.h"
 
+#include "Framework/DialogManager.h"
+
 #include "BlackboardObserver.h"
 #include "ErrorDialog.h"
 #include "IniFileDosNotExistDialog.h"
@@ -60,12 +62,15 @@ int IsMainThread(void)
 int ErrorMessagesFromOtherThreadInst_Error(int par_Level, uint64_t par_Cycle, const char *par_HeaderString,
                                            const char *par_ErrorString, int par_IsGuiMainThreadFlag)
 {
-    (void)par_Level;
     (void)par_IsGuiMainThreadFlag;
     std::printf("Cycle %llu %s: %s\n", static_cast<unsigned long long>(par_Cycle),
                 (nullptr != par_HeaderString) ? par_HeaderString : "",
                 (nullptr != par_ErrorString) ? par_ErrorString : "");
     std::fflush(stdout);
+    // Surface the ThrowError message in the ImGui message log (mutex-guarded, so
+    // this is safe from the GUI or any worker thread).
+    XilEnvImGui::DialogManager::GetInstance().AddErrorMessage(par_Level, par_HeaderString,
+                                                              par_ErrorString);
     return IDOK;
 }
 

@@ -15,6 +15,7 @@
 #include "MainWinowSyncWithOtherThreads.h"
 
 #include "Framework/A2LCalBridge.h"
+#include "Framework/DialogManager.h"
 #include "Framework/UpdateScheduler.h"
 #include "Framework/WindowManager.h"
 #include "Framework/WindowTypeRegistry.h"
@@ -82,6 +83,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
     }
 
     XilEnvImGui::WindowManager::GetInstance().Render(par_Context);
+
+    // Seam-driven dialogs (progress bars, script user dialog, error/message log).
+    XilEnvImGui::DialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
