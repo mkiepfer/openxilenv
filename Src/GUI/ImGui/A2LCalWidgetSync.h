@@ -22,9 +22,9 @@
 extern "C" {
 #endif
 
-/* Called from the scheduler thread by A2LLink.c to notify A2L calibration
- * widgets that a process link changed. No such widgets exist in the M2 skeleton,
- * so this is a no-op stub. */
+/* C-ABI entry points called from the A2L link/scheduler thread. Defined by the
+ * thread-marshalling bridge in Framework/A2LCalBridge.cpp, which enqueues each
+ * event for dispatch on the ImGui render thread. Signatures are fixed by the C core. */
 int GlobalNotifiyA2LCalMapWidgetFuncSchedThread(const char *par_ProcessName, int par_Flags, int par_Action);
 int GlobalNotifiyGetDataFromLinkAckCallback(void *par_IndexData, int par_FetchDataChannelNo, void *par_Param);
 

@@ -136,6 +136,7 @@ target_sources(XilEnvImGui PRIVATE
     ImGuiSyncWithOtherThreads.cpp
     GuiBridgeStubs.cpp
     ${XILENV_QT_OSCILLOSCOPE_DIR}/OscilloscopeCyclic.c
+    Framework/A2LCalBridge.cpp
     Framework/WindowTypeRegistry.cpp
     Framework/UpdateScheduler.cpp
     Framework/WindowManager.cpp

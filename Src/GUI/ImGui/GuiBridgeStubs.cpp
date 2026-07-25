@@ -3,7 +3,6 @@
 
 #include "Platform.h"
 
-#include "A2LCalWidgetSync.h"
 #include "BlackboardObserver.h"
 #include "ErrorDialog.h"
 #include "IniFileDosNotExistDialog.h"
@@ -149,22 +148,8 @@ void StopBlackboardObserver(void)
 }
 
 // --- A2L calibration widget notifier --------------------------------------
-
-int GlobalNotifiyA2LCalMapWidgetFuncSchedThread(const char *par_ProcessName, int par_Flags, int par_Action)
-{
-    (void)par_ProcessName;
-    (void)par_Flags;
-    (void)par_Action;
-    return 0;
-}
-
-int GlobalNotifiyGetDataFromLinkAckCallback(void *par_IndexData, int par_FetchDataChannelNo, void *par_Param)
-{
-    (void)par_IndexData;
-    (void)par_FetchDataChannelNo;
-    (void)par_Param;
-    return 0;
-}
+// The two GlobalNotifiy* entry points are now provided by the real thread-marshalling
+// bridge in Framework/A2LCalBridge.cpp (no longer stubbed here).
 
 } // extern "C"
 

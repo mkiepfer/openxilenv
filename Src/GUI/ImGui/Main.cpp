@@ -14,6 +14,7 @@
 
 #include "MainWinowSyncWithOtherThreads.h"
 
+#include "Framework/A2LCalBridge.h"
 #include "Framework/UpdateScheduler.h"
 #include "Framework/WindowManager.h"
 #include "Framework/WindowTypeRegistry.h"
@@ -242,6 +243,7 @@ int main(int argc, char *argv[])
 
             // Service the GUI/core seam once per frame.
             DrainGuiCommandQueueFromOtherThread();
+            XilEnvImGui::A2LCalBridge::GetInstance().Drain();
 
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
@@ -291,14 +293,17 @@ int main(int argc, char *argv[])
         while (g_running.load())
         {
             DrainGuiCommandQueueFromOtherThread();
+            XilEnvImGui::A2LCalBridge::GetInstance().Drain();
             updateScheduler.Advance(16.0);
             XilEnvImGui::WindowManager::GetInstance().Update(updateScheduler, windowContext);
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
     }
 
-    // Drain anything queued during teardown so no thread stays blocked.
+    // Drain anything queued during teardown so no thread stays blocked and any
+    // still-queued INDEX_DATA_BLOCKs are freed on the render thread.
     DrainGuiCommandQueueFromOtherThread();
+    XilEnvImGui::A2LCalBridge::GetInstance().Drain();
 
     // Persist the sheets/windows back into the ini database (routed to the
     // layout descriptor); the core flushes it to disk on exit like the Qt build.
