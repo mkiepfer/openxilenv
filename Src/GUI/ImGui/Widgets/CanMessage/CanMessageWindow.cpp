@@ -6,11 +6,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility>
+#include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 extern "C" {
 #include "CanFifo.h"
@@ -29,6 +33,79 @@ namespace
 
 constexpr int MAX_MESSAGES_PER_READ{64};
 constexpr int READ_BUFFER_SIZE{64 * 1024};
+
+// Acceptance-mask flag bits, reproduced from the Qt config dialog
+// (CanMessageWindowConfigDialog.cpp:70-92 read, :145-149 write). Normal/Ext/FD/BRS use inverted
+// polarity: a *cleared* bit means "accept/show this frame type" (checkbox checked). J1939MP is the
+// only bit with straight polarity: a *set* bit means "show J1939 multi-packet" (checkbox checked).
+constexpr int MASK_FLAG_NORMAL{0x100};
+constexpr int MASK_FLAG_EXT{0x1};
+constexpr int MASK_FLAG_FD{0x2};
+constexpr int MASK_FLAG_BRS{0x4};
+constexpr int MASK_FLAG_J1939MP{0x200};
+
+/**
+ * @brief Renders an inverted-polarity mask-flag checkbox (checked == bit cleared).
+ * @param[in] par_Label Checkbox label.
+ * @param[in,out] par_Flags Mask flags value updated in place.
+ * @param[in] par_Bit Flag bit governed by this checkbox.
+ */
+void RenderInvertedFlagCheckbox(const char *par_Label, int &par_Flags, int par_Bit)
+{
+    bool checked{0 == (par_Flags & par_Bit)};
+    if (ImGui::Checkbox(par_Label, &checked))
+    {
+        if (checked)
+        {
+            par_Flags &= ~par_Bit;
+        }
+        else
+        {
+            par_Flags |= par_Bit;
+        }
+    }
+}
+
+/**
+ * @brief Renders a straight-polarity mask-flag checkbox (checked == bit set).
+ * @param[in] par_Label Checkbox label.
+ * @param[in,out] par_Flags Mask flags value updated in place.
+ * @param[in] par_Bit Flag bit governed by this checkbox.
+ */
+void RenderFlagCheckbox(const char *par_Label, int &par_Flags, int par_Bit)
+{
+    bool checked{0 != (par_Flags & par_Bit)};
+    if (ImGui::Checkbox(par_Label, &checked))
+    {
+        if (checked)
+        {
+            par_Flags |= par_Bit;
+        }
+        else
+        {
+            par_Flags &= ~par_Bit;
+        }
+    }
+}
+
+/**
+ * @struct ColumnWidthKey
+ * @brief Associates a Qt DisplayColumn*Width ini key with its column-field index.
+ */
+struct ColumnWidthKey
+{
+    const char *key; /*!< Ini entry name (identical to the Qt widget's keys). */
+    int field;       /*!< Column-field index into m_columnWidths. */
+};
+
+// Order and names reproduced from CanMessageWindowWidget.cpp:145-155 / :217-227.
+constexpr ColumnWidthKey COLUMN_WIDTH_KEYS[]{
+    {"DisplayColumnCounterWidth", 0},         {"DisplayColumnTimeAbsoluteWidth", 1},
+    {"DisplayColumnTimeDiffWidth", 2},        {"DisplayColumnTimeDiffMinMaxWidth", 3},
+    {"DisplayColumnDirWidth", 4},             {"DisplayColumnChannelWidth", 5},
+    {"DisplayColumnIdentifierWidth", 6},      {"DisplayColumnTypeWidth", 7},
+    {"DisplayColumnSizeWidth", 8},            {"DisplayColumnNameWidth", 9},
+    {"DisplayColumnDataWidth", 10}};
 
 /**
  * @brief Maps the CAN frame-type/ext byte to its short label (matches the Qt widget).
@@ -487,6 +564,21 @@ void CanMessageWindow::RenderContent(const WindowContext &par_Context)
                                      ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
                                      ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti};
 
+    if (m_record2Disk)
+    {
+        // Qt appends " (recording)" to the window title; the ImGui title is framework-managed,
+        // so surface the same state as an in-content indicator instead.
+        ImGui::TextColored(ImVec4{0.90f, 0.10f, 0.10f, 1.00f}, "%s", "\xE2\x97\x8F recording");
+        ImGui::Separator();
+    }
+
+    // Init width per fixed column: apply the persisted pixel width on first table creation only
+    // (ImGui keeps live column widths in memory across frames by table id).
+    auto initW = [this](ColumnField par_Field) -> float {
+        const int width{m_columnWidths[static_cast<int>(par_Field)]};
+        return (0 < width) ? static_cast<float>(width) : 0.0f;
+    };
+
     const ImVec2 avail{ImGui::GetContentRegionAvail()};
     ImGui::BeginChild("##cancontent", avail, false);
 
@@ -494,33 +586,33 @@ void CanMessageWindow::RenderContent(const WindowContext &par_Context)
     {
         if (m_columnCounter)
         {
-            ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+            ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Count),
                                     static_cast<ImGuiID>(ColumnField::Count));
         }
         if (m_columnTimeAbsolute)
         {
-            ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+            ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Time),
                                     static_cast<ImGuiID>(ColumnField::Time));
         }
         if (m_columnTimeDiff)
         {
-            ImGui::TableSetupColumn("dt", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+            ImGui::TableSetupColumn("dt", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::DiffTime),
                                     static_cast<ImGuiID>(ColumnField::DiffTime));
         }
         if (m_columnTimeDiffMinMax)
         {
-            ImGui::TableSetupColumn("dt min/max", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+            ImGui::TableSetupColumn("dt min/max", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::MinMax),
                                     static_cast<ImGuiID>(ColumnField::MinMax));
         }
-        ImGui::TableSetupColumn("Dir", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+        ImGui::TableSetupColumn("Dir", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Dir),
                                 static_cast<ImGuiID>(ColumnField::Dir));
-        ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+        ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Channel),
                                 static_cast<ImGuiID>(ColumnField::Channel));
-        ImGui::TableSetupColumn("Id", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+        ImGui::TableSetupColumn("Id", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Identifier),
                                 static_cast<ImGuiID>(ColumnField::Identifier));
-        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Type),
                                 static_cast<ImGuiID>(ColumnField::Type));
-        ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 0.0f,
+        ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, initW(ColumnField::Size),
                                 static_cast<ImGuiID>(ColumnField::Size));
         if (m_decode)
         {
@@ -590,7 +682,7 @@ void CanMessageWindow::RenderContent(const WindowContext &par_Context)
             ImGui::TableSetColumnIndex(column++);
             ImGui::Text("%d", line.channel);
             ImGui::TableSetColumnIndex(column++);
-            ImGui::Text("%X", line.id);
+            ImGui::Text("%x", line.id); // Qt renders the Id as lowercase hex without prefix.
             ImGui::TableSetColumnIndex(column++);
             ImGui::TextUnformatted(FrameTypeLabel(line.ext));
             ImGui::TableSetColumnIndex(column++);
@@ -614,10 +706,29 @@ void CanMessageWindow::RenderContent(const WindowContext &par_Context)
             }
             ImGui::TextUnformatted(buffer);
         }
+        CaptureColumnWidths();
         ImGui::EndTable();
     }
 
     ImGui::EndChild();
+}
+
+void CanMessageWindow::CaptureColumnWidths()
+{
+    const ImGuiTable *table{ImGui::GetCurrentTable()};
+    if (nullptr == table)
+    {
+        return;
+    }
+    for (int n{0}; n < table->ColumnsCount; ++n)
+    {
+        const ImGuiTableColumn &column{table->Columns[n]};
+        const int field{static_cast<int>(column.UserID)};
+        if ((0 <= field) && (field < static_cast<int>(ColumnField::Count_)) && (column.WidthGiven > 0.0f))
+        {
+            m_columnWidths[field] = static_cast<int>(column.WidthGiven);
+        }
+    }
 }
 
 void CanMessageWindow::RenderSettingsPopup()
@@ -678,17 +789,29 @@ void CanMessageWindow::RenderSettingsPopup()
             mask.Stop = static_cast<std::uint32_t>(stop);
         }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(90.0f);
-        int flags{mask.Flags};
-        if (ImGui::InputInt("##flags", &flags, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
-        {
-            mask.Flags = flags;
-        }
-        ImGui::SameLine();
         if (ImGui::SmallButton("x"))
         {
             removeIndex = i;
         }
+        // Semantic frame-type flags replace the raw hex field, matching the Qt config dialog
+        // columns and bit polarity exactly (Normal/Ext/FD/BRS: checked == accept the type;
+        // J1939MP: checked == show J1939 multi-packet).
+        int flags{mask.Flags};
+        ImGui::Indent();
+        RenderInvertedFlagCheckbox("Normal", flags, MASK_FLAG_NORMAL);
+        ImGui::SameLine();
+        RenderInvertedFlagCheckbox("Ext", flags, MASK_FLAG_EXT);
+        ImGui::SameLine();
+        RenderInvertedFlagCheckbox("FD", flags, MASK_FLAG_FD);
+        ImGui::SameLine();
+        RenderInvertedFlagCheckbox("BRS", flags, MASK_FLAG_BRS);
+        ImGui::SameLine();
+        RenderFlagCheckbox("J1939MP", flags, MASK_FLAG_J1939MP);
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Flags=0x%X)", static_cast<unsigned int>(flags));
+        ImGui::Unindent();
+        mask.Flags = flags;
+        ImGui::Separator();
         ImGui::PopID();
     }
     if (0 <= removeIndex)
@@ -714,16 +837,118 @@ void CanMessageWindow::RenderSettingsPopup()
 
     ImGui::Separator();
     ImGui::TextUnformatted("Recorder:");
-    if (ImGui::InputText("File name", m_recorderNameBuffer, sizeof(m_recorderNameBuffer)))
+    if (m_record2Disk)
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4{0.90f, 0.10f, 0.10f, 1.00f}, "%s", "\xE2\x97\x8F recording");
+    }
+    ImGui::SetNextItemWidth(300.0f);
+    if (ImGui::InputText("##recfile", m_recorderNameBuffer, sizeof(m_recorderNameBuffer)))
     {
         m_recorderFileName = m_recorderNameBuffer;
     }
+    ImGui::SameLine();
+    if (ImGui::Button("..."))
+    {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        const fs::path current{m_recorderFileName};
+        fs::path dir{current.parent_path()};
+        if (dir.empty() || !fs::exists(dir, ec))
+        {
+            dir = fs::current_path(ec);
+        }
+        m_fileDialogPath = dir.string();
+        std::snprintf(m_fileDialogNameBuffer, sizeof(m_fileDialogNameBuffer), "%s",
+                      current.filename().string().c_str());
+        ImGui::OpenPopup("CanRecorderFileDialog");
+    }
+    ImGui::SameLine();
+    ImGui::TextUnformatted("File name (.txt)");
+    RenderFilePickerPopup();
     ImGui::Checkbox("Record on start", &m_record2DiskIni);
     ImGui::Checkbox("Trigger active", &m_triggerActive);
+    ImGui::BeginDisabled(!m_triggerActive);
     if (ImGui::InputText("Trigger equation", m_triggerBuffer, sizeof(m_triggerBuffer)))
     {
         m_triggerEquation = m_triggerBuffer;
     }
+    ImGui::EndDisabled();
+}
+
+void CanMessageWindow::RenderFilePickerPopup()
+{
+    namespace fs = std::filesystem;
+
+    ImGui::SetNextWindowSize(ImVec2{520.0f, 420.0f}, ImGuiCond_Appearing);
+    if (!ImGui::BeginPopupModal("CanRecorderFileDialog", nullptr, ImGuiWindowFlags_NoSavedSettings))
+    {
+        return;
+    }
+
+    std::error_code ec;
+    ImGui::TextUnformatted(m_fileDialogPath.c_str());
+    if (ImGui::Button(".. (up)"))
+    {
+        const fs::path parent{fs::path{m_fileDialogPath}.parent_path()};
+        if (!parent.empty())
+        {
+            m_fileDialogPath = parent.string();
+        }
+    }
+
+    ImGui::BeginChild("##filelist", ImVec2{0.0f, 280.0f}, true);
+    std::vector<std::string> dirs;
+    std::vector<std::string> files;
+    for (fs::directory_iterator it{m_fileDialogPath, fs::directory_options::skip_permission_denied, ec};
+         !ec && (it != fs::directory_iterator{}); it.increment(ec))
+    {
+        std::error_code typeEc;
+        if (it->is_directory(typeEc))
+        {
+            dirs.push_back(it->path().filename().string());
+        }
+        else if (it->is_regular_file(typeEc))
+        {
+            files.push_back(it->path().filename().string());
+        }
+    }
+    std::sort(dirs.begin(), dirs.end());
+    std::sort(files.begin(), files.end());
+    for (const std::string &name : dirs)
+    {
+        const std::string label{"[DIR] " + name};
+        if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) &&
+            ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            m_fileDialogPath = (fs::path{m_fileDialogPath} / name).string();
+        }
+    }
+    for (const std::string &name : files)
+    {
+        if (ImGui::Selectable(name.c_str()))
+        {
+            std::snprintf(m_fileDialogNameBuffer, sizeof(m_fileDialogNameBuffer), "%s", name.c_str());
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::InputText("##pickedname", m_fileDialogNameBuffer, sizeof(m_fileDialogNameBuffer));
+
+    if (ImGui::Button("Save"))
+    {
+        const fs::path chosen{fs::path{m_fileDialogPath} / m_fileDialogNameBuffer};
+        m_recorderFileName = chosen.string();
+        std::snprintf(m_recorderNameBuffer, sizeof(m_recorderNameBuffer), "%s", m_recorderFileName.c_str());
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 // -------------------------------------------------------------------------
@@ -766,6 +991,12 @@ void CanMessageWindow::WriteConfig(int par_FileDescriptor, const char *par_Secti
                                   par_FileDescriptor);
     (void)IniFileDataBaseWriteInt(par_Section, "DisplayColumnTimeDiffMinMax", m_columnTimeDiffMinMax ? 1 : 0,
                                   par_FileDescriptor);
+
+    // Persist the live column pixel widths under the same keys the Qt widget uses.
+    for (const ColumnWidthKey &entry : COLUMN_WIDTH_KEYS)
+    {
+        (void)IniFileDataBaseWriteInt(par_Section, entry.key, m_columnWidths[entry.field], par_FileDescriptor);
+    }
 }
 
 void CanMessageWindow::ReadConfig(int par_FileDescriptor, const char *par_Section)
@@ -826,6 +1057,12 @@ void CanMessageWindow::ReadConfig(int par_FileDescriptor, const char *par_Sectio
     m_columnTimeDiff = (0 != IniFileDataBaseReadInt(par_Section, "DisplayColumnTimeDiff", 0, par_FileDescriptor));
     m_columnTimeDiffMinMax =
         (0 != IniFileDataBaseReadInt(par_Section, "DisplayColumnTimeDiffMinMax", 0, par_FileDescriptor));
+
+    // Restore the persisted column pixel widths (0 -> use the default width).
+    for (const ColumnWidthKey &entry : COLUMN_WIDTH_KEYS)
+    {
+        m_columnWidths[entry.field] = IniFileDataBaseReadInt(par_Section, entry.key, 0, par_FileDescriptor);
+    }
 
     std::snprintf(m_recorderNameBuffer, sizeof(m_recorderNameBuffer), "%s", m_recorderFileName.c_str());
     std::snprintf(m_triggerBuffer, sizeof(m_triggerBuffer), "%s", m_triggerEquation.c_str());

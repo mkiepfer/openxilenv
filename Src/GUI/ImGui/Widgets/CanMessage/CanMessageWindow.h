@@ -139,10 +139,26 @@ private:
         Type,      /*!< Frame type. */
         Size,      /*!< Payload size. */
         Name,      /*!< Decoded object name (decode not ported). */
-        Data       /*!< Payload bytes. */
+        Data,      /*!< Payload bytes. */
+        Count_     /*!< Number of display columns (mirrors the Qt DisplayColumn*Width key set). */
     };
 
     void RebuildDisplayOrder(const void *par_SortSpecs);
+
+    /**
+     * @brief Captures the live pixel width of every table column into m_columnWidths.
+     * @details Reads ImGuiTableColumn::WidthGiven via imgui_internal so the widths can be
+     *          persisted under the same DisplayColumn*Width keys the Qt widget uses. Must be
+     *          called between ImGui::BeginTable and ImGui::EndTable.
+     */
+    void CaptureColumnWidths();
+
+    /**
+     * @brief Renders the minimal self-contained inline file picker for the recorder file.
+     * @details Lists the current directory's entries with basic navigation (no external
+     *          file-dialog dependency). Writes the chosen path into m_recorderFileName.
+     */
+    void RenderFilePickerPopup();
 
     IWindowType *m_pType{nullptr};        /*!< Owning window type. */
 
@@ -173,6 +189,16 @@ private:
 
     char m_recorderNameBuffer[512]{};     /*!< Settings text buffer for the file name. */
     char m_triggerBuffer[512]{};          /*!< Settings text buffer for the trigger equation. */
+
+    /**
+     * @brief Persisted per-column pixel widths, indexed by ColumnField.
+     * @details Round-trips the Qt DisplayColumn*Width keys. A value of 0 means "use the
+     *          default width"; fixed columns apply it as their TableSetupColumn init width.
+     */
+    int m_columnWidths[static_cast<int>(ColumnField::Count_)]{};
+
+    std::string m_fileDialogPath{};       /*!< Directory currently browsed by the inline file picker. */
+    char m_fileDialogNameBuffer[512]{};   /*!< Editable file-name field inside the inline file picker. */
 };
 
 } // namespace XilEnvImGui
