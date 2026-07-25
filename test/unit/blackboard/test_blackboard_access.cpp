@@ -117,4 +117,61 @@ TEST_F(BlackboardTest, AddBbvari_SameNameTwice_ReturnsSameVid)
     EXPECT_EQ(pre_first, pre_second);
 }
 
+// Typed round-trips for the remaining integer/float storage types. Each writes
+// through the type-specific setter and reads back through the matching getter,
+// pinning that a value survives storage in the native slot unchanged (including
+// negative values in the signed types).
+
+TEST_F(BlackboardTest, WriteReadByte_RoundTrip_PreservesSignedValue)
+{
+    const VID pre_vid = add_bbvari("Test.Signal.Byte", BB_BYTE, "");
+    ASSERT_GT(pre_vid, 0);
+
+    write_bbvari_byte(pre_vid, -42);
+
+    EXPECT_EQ(int8_t{-42}, read_bbvari_byte(pre_vid));
+}
+
+TEST_F(BlackboardTest, WriteReadUbyte_RoundTrip_ReturnsSameValue)
+{
+    const VID pre_vid = add_bbvari("Test.Signal.Ubyte", BB_UBYTE, "");
+    ASSERT_GT(pre_vid, 0);
+
+    write_bbvari_ubyte(pre_vid, 200u);
+
+    EXPECT_EQ(uint8_t{200}, read_bbvari_ubyte(pre_vid));
+}
+
+TEST_F(BlackboardTest, WriteReadWord_RoundTrip_PreservesSignedValue)
+{
+    const VID pre_vid = add_bbvari("Test.Signal.Word", BB_WORD, "");
+    ASSERT_GT(pre_vid, 0);
+
+    write_bbvari_word(pre_vid, -12345);
+
+    EXPECT_EQ(int16_t{-12345}, read_bbvari_word(pre_vid));
+}
+
+TEST_F(BlackboardTest, WriteReadFloat_RoundTrip_ReturnsSameValue)
+{
+    const VID pre_vid = add_bbvari("Test.Signal.Float", BB_FLOAT, "");
+    ASSERT_GT(pre_vid, 0);
+
+    write_bbvari_float(pre_vid, 3.5f);
+
+    EXPECT_FLOAT_EQ(3.5f, read_bbvari_float(pre_vid));
+}
+
+// Reading an integer-typed signal through the physical-conversion path (no
+// explicit conversion attached) yields its numeric value as a double.
+TEST_F(BlackboardTest, ReadConvertDouble_IntegerType_ReturnsNumericValue)
+{
+    const VID pre_vid = add_bbvari("Test.Signal.ByteConv", BB_UBYTE, "");
+    ASSERT_GT(pre_vid, 0);
+
+    write_bbvari_ubyte(pre_vid, 100u);
+
+    EXPECT_DOUBLE_EQ(100.0, read_bbvari_convert_double(pre_vid));
+}
+
 } // namespace

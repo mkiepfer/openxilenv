@@ -117,4 +117,90 @@ TEST(EquationParserTest, DirectSolveErrString_UnbalancedParenthesis_ReportsError
     FreeErrStringBuffer(&result_errstring);
 }
 
+// --- Bitwise operators and bit-field functions --------------------------------
+
+TEST(EquationParserTest, DirectSolve_BitwiseOrXorOperators)
+{
+    EXPECT_NEAR(15.0, direct_solve_equation("12|3"), EPS);
+    EXPECT_NEAR(6.0, direct_solve_equation("12^10"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_BitwiseAndFunction_ComputesBitwiseAnd)
+{
+    // The and()/or()/xor() built-in functions perform true bitwise operations.
+    EXPECT_NEAR(8.0, direct_solve_equation("and(12,10)"), EPS);
+    EXPECT_NEAR(15.0, direct_solve_equation("or(12,3)"), EPS);
+    EXPECT_NEAR(6.0, direct_solve_equation("xor(12,10)"), EPS);
+}
+
+// CHARACTERIZATION OF A KNOWN BUG: the infix '&' operator tokenizes as
+// EQU_OP_BITWISE_AND, but and_bits() (EquationParser.c) dispatches
+// EQU_OP_LOGICAL_AND instead, so "12&10" evaluates as a *logical* and (both
+// operands truthy -> 1) rather than the bitwise 8. This pins the current
+// behaviour so the migration stays equivalent; use and(a,b) for real bitwise
+// and. '|' and '^' are unaffected and remain bitwise (see above).
+TEST(EquationParserTest, DirectSolve_InfixAmpersand_IsLogicalAndDueToKnownBug)
+{
+    EXPECT_NEAR(1.0, direct_solve_equation("12&10"), EPS);
+    EXPECT_NEAR(0.0, direct_solve_equation("12&0"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_ShiftOperators_LeftAndRight)
+{
+    EXPECT_NEAR(16.0, direct_solve_equation("1<<4"), EPS);
+    EXPECT_NEAR(16.0, direct_solve_equation("256>>4"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_GetBits_ExtractsBitField)
+{
+    // getbits(value, start, size): (value >> start) masked to `size` bits.
+    EXPECT_NEAR(15.0, direct_solve_equation("getbits(240,4,4)"), EPS);
+    EXPECT_NEAR(15.0, direct_solve_equation("getbits(255,0,4)"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_SetBits_ReplacesBitField)
+{
+    EXPECT_NEAR(255.0, direct_solve_equation("setbits(0,0,8,255)"), EPS);
+    EXPECT_NEAR(240.0, direct_solve_equation("setbits(255,0,4,0)"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_AndOrXorBits_MaskWindowedValue)
+{
+    EXPECT_NEAR(240.0, direct_solve_equation("andbits(255,0,4,0)"), EPS);
+    EXPECT_NEAR(255.0, direct_solve_equation("orbits(240,0,4,15)"), EPS);
+    EXPECT_NEAR(240.0, direct_solve_equation("xorbits(255,0,4,15)"), EPS);
+}
+
+// --- Comparison and logical operators (yield 1.0 / 0.0) -----------------------
+
+TEST(EquationParserTest, DirectSolve_ComparisonOperators_YieldBoolean)
+{
+    EXPECT_NEAR(1.0, direct_solve_equation("5==5"), EPS);
+    EXPECT_NEAR(0.0, direct_solve_equation("5==6"), EPS);
+    EXPECT_NEAR(1.0, direct_solve_equation("3<7"), EPS);
+    EXPECT_NEAR(0.0, direct_solve_equation("7<3"), EPS);
+    EXPECT_NEAR(1.0, direct_solve_equation("3!=4"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_LogicalOperators_OperateOnTruthiness)
+{
+    EXPECT_NEAR(0.0, direct_solve_equation("2&&0"), EPS);
+    EXPECT_NEAR(1.0, direct_solve_equation("2&&3"), EPS);
+    EXPECT_NEAR(0.0, direct_solve_equation("0||0"), EPS);
+    EXPECT_NEAR(1.0, direct_solve_equation("5||0"), EPS);
+}
+
+// --- Integer cast / clamp functions ------------------------------------------
+
+TEST(EquationParserTest, DirectSolve_Uint64AndInt64Casts)
+{
+    EXPECT_NEAR(255.0, direct_solve_equation("uint64(255)"), EPS);
+    EXPECT_NEAR(-3.0, direct_solve_equation("int64(0-3)"), EPS);
+}
+
+TEST(EquationParserTest, DirectSolve_Uint8Cast_ClampsToByteRange)
+{
+    EXPECT_NEAR(255.0, direct_solve_equation("uint8(300)"), EPS);
+}
+
 } // namespace
