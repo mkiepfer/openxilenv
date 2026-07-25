@@ -148,6 +148,22 @@ void RenderSection(const char *par_Title, std::vector<FormField> &par_Fields)
     ImGui::PopID();
 }
 
+/**
+ * @brief Derives the GUI layout file path from a main config path (foo.toml -> foo.layout.toml).
+ * @details Mirrors StartupInit's derivation: strip the last extension, append ".layout.toml".
+ */
+std::string DeriveLayoutPath(const std::string &par_MainPath)
+{
+    std::string layout{par_MainPath};
+    const std::string::size_type dot{layout.find_last_of('.')};
+    if (std::string::npos != dot)
+    {
+        layout.erase(dot);
+    }
+    layout.append(".layout.toml");
+    return layout;
+}
+
 } // namespace
 
 // -------------------------------------------------------------------------
@@ -162,9 +178,14 @@ bool SaveConfiguration()
     WindowManager::GetInstance().SaveLayout(fd);
     (void)write_process_list2ini();
 
-    char iniFileName[MAX_PATH];
-    iniFileName[0] = '\0';
-    (void)IniFileDataBaseGetFileNameByDescriptor(fd, iniFileName, static_cast<int>(sizeof(iniFileName)));
+    // The GUI layout (sheets/windows, "GUI/" sections) is routed to a separate layout descriptor
+    // by the ini facade. Flush it too, else Save persists only the engine config and the window
+    // arrangement is lost on the next load. (StartupInit's shutdown saves both the same way.)
+    const int layoutFd{GetLayoutFileDescriptor()};
+    if (0 <= layoutFd)
+    {
+        (void)IniFileDataBaseSave(layoutFd, nullptr, INIFILE_DATABAE_OPERATION_WRITE_ONLY);
+    }
 
     if (0 != IniFileDataBaseSave(fd, nullptr, INIFILE_DATABAE_OPERATION_WRITE_ONLY))
     {
@@ -194,6 +215,23 @@ bool SaveConfigurationAs(const char *par_Path)
     WriteBasicConfigurationToIni(&s_main_ini_val);
     WindowManager::GetInstance().SaveLayout(fd);
     (void)write_process_list2ini();
+
+    // Save the GUI layout descriptor to the matching "<path w/o ext>.layout.toml" and rename the
+    // descriptor to it — else the window arrangement stays orphaned in the OLD layout file and
+    // reopening the new config shows an empty desktop. Layout is saved before the engine file,
+    // matching StartupInit's shutdown order.
+    const int layoutFd{GetLayoutFileDescriptor()};
+    if (0 <= layoutFd)
+    {
+        const std::string layoutPath{DeriveLayoutPath(par_Path)};
+        (void)CreateNewEmptyIniFile(layoutPath.c_str());
+        if (0 != IniFileDataBaseSave(layoutFd, layoutPath.c_str(), INIFILE_DATABAE_OPERATION_RENAME))
+        {
+            DialogManager::GetInstance().AddErrorMessage(2, "Save configuration as",
+                                                         "cannot write the layout file (.layout.toml)");
+            // Engine file is still saved below so the config is not lost entirely.
+        }
+    }
 
     if (0 != IniFileDataBaseSave(fd, par_Path, INIFILE_DATABAE_OPERATION_RENAME))
     {
