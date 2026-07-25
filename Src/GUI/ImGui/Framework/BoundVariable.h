@@ -153,7 +153,10 @@ private:
     double m_max{1.0};          /*!< Upper bound. */
     std::int32_t m_color{0};    /*!< 0x00bbggrr color. */
     int m_precision{0};         /*!< Display precision. */
-    bool m_physical{true};      /*!< Physical (converted) vs. raw value handling. */
+    bool m_physical{false};     /*!< Physical (converted) vs. raw value handling. Defaults to
+                                     raw/decimal like the Qt KnobOrTachoWidget, so a freshly
+                                     dropped variable (payload display-mode Unknown) shows dec,
+                                     not phys; config load and explicit drop modes override it. */
 };
 
 } // namespace XilEnvImGui
