@@ -154,6 +154,7 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/Tacho/TachoWindow.cpp
     Widgets/Oscilloscope/OscilloscopeWindow.cpp
     Widgets/CanMessage/CanMessageWindow.cpp
-    Widgets/A2LCalSingle/A2LCalSingleWindow.cpp)
+    Widgets/A2LCalSingle/A2LCalSingleWindow.cpp
+    Widgets/CalibrationTree/CalibrationTreeWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)
