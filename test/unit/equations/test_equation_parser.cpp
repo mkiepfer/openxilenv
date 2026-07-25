@@ -119,8 +119,9 @@ TEST(EquationParserTest, DirectSolveErrString_UnbalancedParenthesis_ReportsError
 
 // --- Bitwise operators and bit-field functions --------------------------------
 
-TEST(EquationParserTest, DirectSolve_BitwiseOrXorOperators)
+TEST(EquationParserTest, DirectSolve_BitwiseAndOrXorOperators)
 {
+    EXPECT_NEAR(8.0, direct_solve_equation("12&10"), EPS);
     EXPECT_NEAR(15.0, direct_solve_equation("12|3"), EPS);
     EXPECT_NEAR(6.0, direct_solve_equation("12^10"), EPS);
 }
@@ -131,17 +132,18 @@ TEST(EquationParserTest, DirectSolve_BitwiseAndFunction_ComputesBitwiseAnd)
     EXPECT_NEAR(8.0, direct_solve_equation("and(12,10)"), EPS);
     EXPECT_NEAR(15.0, direct_solve_equation("or(12,3)"), EPS);
     EXPECT_NEAR(6.0, direct_solve_equation("xor(12,10)"), EPS);
+
+    // The infix '&' operator computes the same bitwise-and as the and() function.
+    EXPECT_NEAR(8.0, direct_solve_equation("12&10"), EPS);
+    EXPECT_NEAR(direct_solve_equation("and(12,10)"), direct_solve_equation("12&10"), EPS);
 }
 
-// CHARACTERIZATION OF A KNOWN BUG: the infix '&' operator tokenizes as
-// EQU_OP_BITWISE_AND, but and_bits() (EquationParser.c) dispatches
-// EQU_OP_LOGICAL_AND instead, so "12&10" evaluates as a *logical* and (both
-// operands truthy -> 1) rather than the bitwise 8. This pins the current
-// behaviour so the migration stays equivalent; use and(a,b) for real bitwise
-// and. '|' and '^' are unaffected and remain bitwise (see above).
-TEST(EquationParserTest, DirectSolve_InfixAmpersand_IsLogicalAndDueToKnownBug)
+// The infix '&' operator tokenizes as EQU_OP_BITWISE_AND and, like '|' and '^',
+// dispatches a bitwise command in and_bits() (EquationParser.c), so "12&10"
+// evaluates to the bitwise 8 rather than a logical and.
+TEST(EquationParserTest, DirectSolve_InfixAmpersand_ComputesBitwiseAnd)
 {
-    EXPECT_NEAR(1.0, direct_solve_equation("12&10"), EPS);
+    EXPECT_NEAR(8.0, direct_solve_equation("12&10"), EPS);
     EXPECT_NEAR(0.0, direct_solve_equation("12&0"), EPS);
 }
 
