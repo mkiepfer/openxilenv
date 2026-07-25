@@ -183,6 +183,71 @@ static int OnTomlConfigEntry(const char *par_Section, const char *par_Key, const
     return 0;
 }
 
+// Legacy INI parser used as a fallback when a file is not valid TOML, so that
+// pre-migration .ini configs (and MRU/history entries pointing at them) keep
+// loading. Writing always stays TOML. Parses the in-memory buffer in place
+// (';' comments, '[section]', 'key=value', case-sensitive) and feeds each entry
+// into the DB exactly like the historical line parser did.
+static int ParseLegacyIniBuffer(char *par_Buffer, size_t par_Length, int par_FileDescriptor)
+{
+    char Section[INI_MAX_SECTION_LENGTH];
+    char Entry[INI_MAX_ENTRYNAME_LENGTH];
+    char *p = par_Buffer;
+    char *BufEnd = par_Buffer + par_Length;
+
+    Section[0] = '\0';
+    while (p < BufEnd) {
+        char *q;
+        char *LineEnd = p;
+        while ((LineEnd < BufEnd) && (*LineEnd != '\n')) {
+            LineEnd++;
+        }
+        if (LineEnd < BufEnd) {
+            *LineEnd = '\0';   // terminate the line (replaces '\n')
+        }
+        if ((LineEnd > p) && (*(LineEnd - 1) == '\r')) {
+            *(LineEnd - 1) = '\0';
+        }
+
+        q = p;
+        while (IsSpace(*q)) {
+            q++;
+        }
+        if (*q == ';') {
+            // comment line
+        } else if (*q == '[') {
+            int c = 0;
+            q++;
+            while ((*q != ']') && (*q != '\0') && (c < INI_MAX_SECTION_LENGTH - 1)) {
+                Section[c++] = *q++;
+            }
+            Section[c] = '\0';
+        } else if (*q != '\0') {
+            int c = 0;
+            while ((*q != '=') && (*q != '\0') && (c < INI_MAX_ENTRYNAME_LENGTH - 1)) {
+                Entry[c++] = *q++;
+            }
+            while ((c > 0) && IsSpace(Entry[c - 1])) {
+                c--;   // trim whitespace before '='
+            }
+            Entry[c] = '\0';
+            if ((c > 0) && (*q == '=')) {
+                q++;   // skip '='
+                while (IsSpace(*q)) {
+                    q++;   // trim whitespace after '='
+                }
+                if (*q != '\0') {
+                    if (!IniFileDataBaseWriteStringNoLock(Section, Entry, q, par_FileDescriptor)) {
+                        return -1;
+                    }
+                }
+            }
+        }
+        p = LineEnd + 1;
+    }
+    return 0;
+}
+
 static int ParserIniFile(FILE* par_FileHanlde, int par_FileDescriptor, uint64_t par_IniFileSize)
 {
     char *Buffer;
@@ -222,6 +287,13 @@ static int ParserIniFile(FILE* par_FileHanlde, int par_FileDescriptor, uint64_t 
     Ctx.FileDescriptor = par_FileDescriptor;
     Ctx.Error = 0;
     ParseResult = TomlConfigBackendParseBuffer(Buffer, Length, OnTomlConfigEntry, &Ctx);
+    if (ParseResult == -1) {
+        // Not valid TOML: fall back to the legacy INI parser (backward compat).
+        // A pure TOML parse error (-1) means no entries were written yet, so the
+        // fallback starts from a clean state. A callback failure (-2) is a real
+        // write error, not a format mismatch, and must not be retried.
+        ParseResult = ParseLegacyIniBuffer(Buffer, Length, par_FileDescriptor);
+    }
     my_free(Buffer);
 
     if (ProgressBarId >= 0) {

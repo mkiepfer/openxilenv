@@ -238,4 +238,39 @@ TEST(IniDataBaseLayoutSplitTest, GuiSectionsRouteToLayoutDescriptor)
     std::remove(pre_layout_path);
 }
 
+// Dual-read backward compatibility: a legacy INI file (';' comments, unquoted
+// values) is not valid TOML, so IniFileDataBaseOpen must fall back to the INI
+// parser and still load it. Writing stays TOML; this only keeps old configs
+// (and history/MRU entries pointing at them) readable.
+TEST(IniDataBaseDualReadTest, LoadsLegacyIniFileViaFallback)
+{
+    const char* pre_path = "xilenv_legacy_format.ini";
+
+    std::FILE* pre_file = std::fopen(pre_path, "wt");
+    ASSERT_NE(nullptr, pre_file);
+    std::fputs("; legacy OpenXilEnv ini comment\n"
+               "[BasicSettings]\n"
+               "  ProjectName=LegacyProject\n"
+               "  BlackBoardSize=4096\n"
+               "[Scheduler]\n"
+               "  Period=0.01\n",
+               pre_file);
+    std::fclose(pre_file);
+
+    IniFileDataBaseInit();
+    int result_fd = IniFileDataBaseOpen(pre_path);
+    ASSERT_GE(result_fd, 0) << "legacy INI must load through the fallback parser";
+
+    char result_buffer[128]{};
+    IniFileDataBaseReadString("BasicSettings", "ProjectName", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), result_fd);
+    EXPECT_STREQ("LegacyProject", result_buffer);
+    EXPECT_EQ(4096, IniFileDataBaseReadInt("BasicSettings", "BlackBoardSize", -1, result_fd));
+    EXPECT_DOUBLE_EQ(0.01, IniFileDataBaseReadFloat("Scheduler", "Period", 0.0, result_fd));
+
+    IniFileDataBaseClose(result_fd);
+    IniFileDataBaseTerminate();
+    std::remove(pre_path);
+}
+
 } // namespace
