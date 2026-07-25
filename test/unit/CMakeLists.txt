@@ -52,6 +52,8 @@ add_executable(xilenv_core_tests
     ini/test_ini_database.cpp
     blackboard/test_blackboard_access.cpp
     blackboard/test_blackboard_convert.cpp
+    a2l/test_a2l_value.cpp
+    can/test_can_database.cpp
     equations/test_equation_parser.cpp
     utilities/test_string_max_char.cpp
     utilities/test_print_format_to_string.cpp
