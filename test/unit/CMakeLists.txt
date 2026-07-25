@@ -51,6 +51,8 @@ set(XilEnvTestSupportSources
 add_executable(xilenv_core_tests
     ini/test_ini_database.cpp
     blackboard/test_blackboard_access.cpp
+    equations/test_equation_parser.cpp
+    utilities/test_string_max_char.cpp
     test_support_stubs.cpp
     ${XilEnvTestSupportSources}
 )
