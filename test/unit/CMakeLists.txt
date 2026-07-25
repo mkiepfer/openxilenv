@@ -53,9 +53,11 @@ add_executable(xilenv_core_tests
     blackboard/test_blackboard_access.cpp
     blackboard/test_blackboard_convert.cpp
     a2l/test_a2l_value.cpp
+    a2l/test_s19_bin_file.cpp
     can/test_can_database.cpp
     global/test_global_helpers.cpp
     equations/test_equation_parser.cpp
+    ramps/test_ramps_read_pair.cpp
     utilities/test_string_max_char.cpp
     utilities/test_print_format_to_string.cpp
     test_support_stubs.cpp
