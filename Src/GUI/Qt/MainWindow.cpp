@@ -76,6 +76,7 @@ extern "C" {
 #include "Scheduler.h"
 #include "ReadDspConfig.h"
 #include "RemoteMasterBlackboard.h"
+#include "IniSectionEntryDefines.h"
 }
 
 
@@ -1011,7 +1012,7 @@ void MainWindow::writeSheetsToIni()
 {
     // the current selected sheet would be stored into the BasicSettings section inside the INI file
     QString SelectedSheet = GetSheetName();
-    IniFileDataBaseWriteString("BasicSettings", "SelectedSheet", QStringToConstChar(SelectedSheet), GetMainFileDescriptor());
+    IniFileDataBaseWriteString(OPT_GUI_SECTION, "SelectedSheet", QStringToConstChar(SelectedSheet), GetMainFileDescriptor());
 
     saveAllSheets (SelectedSheet);
 }
@@ -1034,7 +1035,7 @@ void MainWindow::ReadAllSheetsFromIni()
     bool SelectedSheetAreDefined;
 
     // the current selected sheet would be stored into the BasicSettings section inside the INI file
-    if (IniFileDataBaseReadString("BasicSettings", "SelectedSheet", "", SelectedSheet, sizeof(SelectedSheet), GetMainFileDescriptor()) <= 0) {
+    if (IniFileDataBaseReadString(OPT_GUI_SECTION, "SelectedSheet", "", SelectedSheet, sizeof(SelectedSheet), GetMainFileDescriptor()) <= 0) {
         STRING_COPY_TO_ARRAY (SelectedSheet, "Default");
         SelectedSheetAreDefined = false;
     } else {

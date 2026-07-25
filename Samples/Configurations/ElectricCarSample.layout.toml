@@ -34,6 +34,18 @@ W2 = 'Transmition'
 W3 = 'Vehicle'
 W4 = 'Error'
 
+['GUI/BasicSettings']
+ControlpanelXpos = '286'
+ControlpanelYpos = '73'
+DarkMode = 'yes'
+HideControlPanel = 'yes'
+OscilloscopeDefaultBufferDepth = '16384'
+SelectedControl = 'Script'
+SelectedSheet = 'Default'
+maximized = '0'
+xdim = '1368'
+ydim = '874'
+
 ['GUI/OpenWindowsForSheet0']
 SheetName = 'Default'
 W0 = 'Control lamps view 1'

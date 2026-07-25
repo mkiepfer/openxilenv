@@ -20,9 +20,58 @@ extern "C" {
 
 namespace {
 
+// The legacy [BasicSettings] section historically mixed engine config with
+// GUI/desktop state. These individual keys belong to the layout file and are
+// re-homed into its "GUI/BasicSettings" section, matching the runtime code that
+// reads/writes them via OPT_GUI_SECTION. Keep this list in sync with the
+// OPT_GUI_SECTION usage in Src/Global/MainValues.c and the Qt GUI.
+const char* const BASIC_SETTINGS_SECTION = "BasicSettings";
+const char* const GUI_BASIC_SETTINGS_SECTION = "GUI/BasicSettings";
+
+const char* const BASIC_SETTINGS_GUI_KEYS[] = {
+    "xdim", "ydim", "maximized",
+    "ControlpanelXpos", "ControlpanelYpos",
+    "DarkMode", "HideControlPanel", "SelectedControl",
+    "TextDefaultFont", "OscilloscopeDefaultFont", "OscilloscopeDefaultBufferDepth",
+    "SelectedSheet",
+    "MessageWindowStayOnTop", "MessageWindowXPosition", "MessageWindowYPosition",
+    "MessageWindowXSize", "MessageWindowYSize", "MessageWindowMaxLines",
+};
+
+// Keys generated at runtime with a variable suffix (e.g. "Last Directory for *.dsk").
+const char* const BASIC_SETTINGS_GUI_KEY_PREFIXES[] = {
+    "Last Directory for ",
+};
+
 bool IsSpaceChar(char c)
 {
     return ((c >= 9) && (c <= 13)) || (c == 32);
+}
+
+// Extract the key part of a "key=value" line (up to the first '='), matching the
+// split TomlConfigBackendAddEntry performs, and report whether it is a GUI key.
+bool IsBasicSettingsGuiKey(const char* par_KeyValueLine)
+{
+    const char* equals = std::strchr(par_KeyValueLine, '=');
+    size_t keyLen = (equals != nullptr) ? static_cast<size_t>(equals - par_KeyValueLine)
+                                        : std::strlen(par_KeyValueLine);
+    std::string key(par_KeyValueLine, keyLen);
+
+    for (const char* guiKey : BASIC_SETTINGS_GUI_KEYS)
+    {
+        if (key == guiKey)
+        {
+            return true;
+        }
+    }
+    for (const char* prefix : BASIC_SETTINGS_GUI_KEY_PREFIXES)
+    {
+        if (key.rfind(prefix, 0) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 int WriteTomlFile(const char* par_Path, void* par_Toml)
@@ -107,7 +156,16 @@ int main(int argc, char** argv)
         // entry line: "key=value" — the backend splits at the first '='
         if (!currentSection.empty())
         {
-            TomlConfigBackendAddEntry(currentToml, currentSection.c_str(), p);
+            // Re-home the mixed-in GUI/desktop-state keys of the legacy
+            // [BasicSettings] section into the layout file's GUI section.
+            if ((currentSection == BASIC_SETTINGS_SECTION) && IsBasicSettingsGuiKey(p))
+            {
+                TomlConfigBackendAddEntry(layoutToml, GUI_BASIC_SETTINGS_SECTION, p);
+            }
+            else
+            {
+                TomlConfigBackendAddEntry(currentToml, currentSection.c_str(), p);
+            }
         }
     }
     std::fclose(in);

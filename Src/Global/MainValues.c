@@ -143,7 +143,7 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
                                                     "SuppressDisplayNonExistingValues",
                                                     0, Fd);
     // Width of the main window
-    if ((sp_main_ini->MainWindowWidth = IniFileDataBaseReadInt(OPT_SECTION,
+    if ((sp_main_ini->MainWindowWidth = IniFileDataBaseReadInt(OPT_GUI_SECTION,
                                                 OPT_XDIM_TEXT,
                                                 OPT_XDIM_DEF,
                                                 Fd)) <= 0) {
@@ -151,26 +151,26 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
     }
 
     // Height of the main window
-    if ((sp_main_ini->MainWindowHeight = IniFileDataBaseReadInt(OPT_SECTION,
+    if ((sp_main_ini->MainWindowHeight = IniFileDataBaseReadInt(OPT_GUI_SECTION,
                                                 OPT_YDIM_TEXT,
                                                 OPT_YDIM_DEF,
                                                 Fd)) <= 0) {
         sp_main_ini->MainWindowHeight = OPT_YDIM_DEF;
     }
 
-    sp_main_ini->Maximized = IniFileDataBaseReadInt(OPT_SECTION,
+    sp_main_ini->Maximized = IniFileDataBaseReadInt(OPT_GUI_SECTION,
                                                 OPT_MAXIMIZED_TEXT,
                                                 OPT_MAXIMIZED_DEF,
                                                 Fd);
 
     // X position of the control panels
-    sp_main_ini->ControlPanelXPos = IniFileDataBaseReadInt(OPT_SECTION,
+    sp_main_ini->ControlPanelXPos = IniFileDataBaseReadInt(OPT_GUI_SECTION,
                                                 OPT_CPNL_XPOS_TEXT,
                                                 OPT_CPNL_XPOS_DEF,
                                                 Fd);
 
     // Y position of the control panels
-    sp_main_ini->ControlPanelYPos = IniFileDataBaseReadInt(OPT_SECTION,
+    sp_main_ini->ControlPanelYPos = IniFileDataBaseReadInt(OPT_GUI_SECTION,
                                                 OPT_CPNL_YPOS_TEXT,
                                                 OPT_CPNL_YPOS_DEF,
                                                 Fd);
@@ -185,7 +185,7 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
     }
 
     // Selected internal Prozess inside the control panel
-    IniFileDataBaseReadString(OPT_SECTION, OPT_ACT_CTRL_TEXT,
+    IniFileDataBaseReadString(OPT_GUI_SECTION, OPT_ACT_CTRL_TEXT,
                             "Script", tmp_str, sizeof (tmp_str),
                             Fd);
 
@@ -309,7 +309,7 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
     sp_main_ini->StopEquationIfScriptStopped = 1;
 
     sp_main_ini->HideControlPanelLock = 0;
-    IniFileDataBaseReadString (OPT_SECTION, "HideControlPanel",
+    IniFileDataBaseReadString (OPT_GUI_SECTION, "HideControlPanel",
                                 "no", tmp_str, sizeof (tmp_str), Fd);
     if (!strcmp (tmp_str, "yes")) sp_main_ini->HideControlPanel = 1;
     else sp_main_ini->HideControlPanel = 0;
@@ -338,7 +338,7 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
     sp_main_ini->TextDefaultShowDispayTypeColumn = IniFileDataBaseReadYesNo (OPT_SECTION, "TextDefaultShowDispayTypeColumn", 1, Fd);
     MEMSET (sp_main_ini->TextDefaultFont, 0, sizeof (sp_main_ini->TextDefaultFont));
     sp_main_ini->TextDefaultFontSize = 0;
-    if (IniFileDataBaseReadString(OPT_SECTION, "TextDefaultFont", "", tmp_str, sizeof (tmp_str), Fd) > 0) {
+    if (IniFileDataBaseReadString(OPT_GUI_SECTION, "TextDefaultFont", "", tmp_str, sizeof (tmp_str), Fd) > 0) {
         char *Name, *Size;
         if (StringCommaSeparate (tmp_str, &Name, &Size, NULL) == 2) {
             strncpy (sp_main_ini->TextDefaultFont, Name, sizeof (sp_main_ini->TextDefaultFont)-1);
@@ -348,10 +348,10 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
         }
     }
     // oscilloscope window:
-    sp_main_ini->OscilloscopeDefaultBufferDepth = IniFileDataBaseReadInt (OPT_SECTION, "OscilloscopeDefaultBufferDepth", 131072, Fd);
+    sp_main_ini->OscilloscopeDefaultBufferDepth = IniFileDataBaseReadInt (OPT_GUI_SECTION, "OscilloscopeDefaultBufferDepth", 131072, Fd);
     MEMSET (sp_main_ini->OscilloscopeDefaultFont, 0, sizeof (sp_main_ini->OscilloscopeDefaultFont));
     sp_main_ini->OscilloscopeDefaultFontSize = 0;
-    if (IniFileDataBaseReadString(OPT_SECTION, "OscilloscopeDefaultFont", "", tmp_str, sizeof (tmp_str), Fd) > 0) {
+    if (IniFileDataBaseReadString(OPT_GUI_SECTION, "OscilloscopeDefaultFont", "", tmp_str, sizeof (tmp_str), Fd) > 0) {
         char *Name, *Size;
         if (StringCommaSeparate (tmp_str, &Name, &Size, NULL) == 2) {
             strncpy (sp_main_ini->OscilloscopeDefaultFont, Name, sizeof (sp_main_ini->OscilloscopeDefaultFont)-1);
@@ -417,7 +417,7 @@ int ReadBasicConfigurationFromIni(MAIN_INI_VAL *sp_main_ini)
 
     s_main_ini_val.WriteMemoryLeakFile = IniFileDataBaseReadYesNo(OPT_SECTION, "WriteMemoryLeakFile", 0, Fd);
 
-    s_main_ini_val.ShouldUseDarkModeIni = IniFileDataBaseReadYesNo(OPT_SECTION, "DarkMode", 0, Fd);
+    s_main_ini_val.ShouldUseDarkModeIni = IniFileDataBaseReadYesNo(OPT_GUI_SECTION, "DarkMode", 0, Fd);
     if (!s_main_ini_val.DarkModeWasSetByUser) {  // Dark mode was not set before?
         s_main_ini_val.DarkMode = s_main_ini_val.ShouldUseDarkModeIni;
     }
@@ -520,31 +520,31 @@ int WriteBasicConfigurationToIni(MAIN_INI_VAL *sp_main_ini)
     }
 
     PrintFormatToString (tmp_str, sizeof(tmp_str), "%d", sp_main_ini->MainWindowWidth);
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_XDIM_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_XDIM_TEXT,
                                 tmp_str, Fd) == 0) {
         return INI_WRITE_ERROR;
     }
 
     PrintFormatToString (tmp_str, sizeof(tmp_str), "%d", sp_main_ini->MainWindowHeight);
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_YDIM_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_YDIM_TEXT,
                                 tmp_str, Fd) == 0) {
         return INI_WRITE_ERROR;
     }
 
     PrintFormatToString (tmp_str, sizeof(tmp_str), "%d", sp_main_ini->Maximized);
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_MAXIMIZED_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_MAXIMIZED_TEXT,
                                 tmp_str, Fd) == 0) {
         return INI_WRITE_ERROR;
     }
 
     PrintFormatToString (tmp_str, sizeof(tmp_str), "%d", sp_main_ini->ControlPanelXPos);
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_CPNL_XPOS_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_CPNL_XPOS_TEXT,
                                 tmp_str, Fd) == 0) {
         return INI_WRITE_ERROR;
     }
 
     PrintFormatToString (tmp_str, sizeof(tmp_str), "%d", sp_main_ini->ControlPanelYPos);
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_CPNL_YPOS_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_CPNL_YPOS_TEXT,
                                 tmp_str, Fd) == 0) {
         return INI_WRITE_ERROR;
     }
@@ -555,7 +555,7 @@ int WriteBasicConfigurationToIni(MAIN_INI_VAL *sp_main_ini)
         return INI_WRITE_ERROR;
     }
 
-    if (IniFileDataBaseWriteString(OPT_SECTION, OPT_ACT_CTRL_TEXT,
+    if (IniFileDataBaseWriteString(OPT_GUI_SECTION, OPT_ACT_CTRL_TEXT,
                         szIntProcessnames[sp_main_ini->ControlPanelSelectedInternalProcess],
                         Fd) == 0) {
         return INI_WRITE_ERROR;
@@ -683,10 +683,10 @@ int WriteBasicConfigurationToIni(MAIN_INI_VAL *sp_main_ini)
                               tmp_str, Fd);
 
     if (s_main_ini_val.HideControlPanel) {
-        IniFileDataBaseWriteString (OPT_SECTION, "HideControlPanel",
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "HideControlPanel",
                                      "yes", Fd);
     } else {
-        IniFileDataBaseWriteString (OPT_SECTION, "HideControlPanel",
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "HideControlPanel",
                                      "no", Fd);
     }
 
@@ -715,21 +715,21 @@ int WriteBasicConfigurationToIni(MAIN_INI_VAL *sp_main_ini)
         StringCopyMaxCharTruncate(tmp_str, sp_main_ini->TextDefaultFont, sizeof(tmp_str));
         STRING_APPEND_TO_ARRAY(tmp_str, ", ");
         STRING_APPEND_TO_ARRAY(tmp_str, Help);
-        IniFileDataBaseWriteString (OPT_SECTION, "TextDefaultFont", tmp_str, Fd);
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "TextDefaultFont", tmp_str, Fd);
     } else {
-        IniFileDataBaseWriteString (OPT_SECTION, "TextDefaultFont", NULL, Fd);
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "TextDefaultFont", NULL, Fd);
     }
     // oscilloscope window
-    IniFileDataBaseWriteInt (OPT_SECTION, "OscilloscopeDefaultBufferDepth", sp_main_ini->OscilloscopeDefaultBufferDepth, Fd);
+    IniFileDataBaseWriteInt (OPT_GUI_SECTION, "OscilloscopeDefaultBufferDepth", sp_main_ini->OscilloscopeDefaultBufferDepth, Fd);
     if (strlen(sp_main_ini->OscilloscopeDefaultFont)) {
         char Help[16];
         PrintFormatToString (Help, sizeof(Help), "%i", sp_main_ini->OscilloscopeDefaultFontSize);
         StringCopyMaxCharTruncate(tmp_str, sp_main_ini->OscilloscopeDefaultFont, sizeof(tmp_str));
         STRING_APPEND_TO_ARRAY(tmp_str, ", ");
         STRING_APPEND_TO_ARRAY(tmp_str, Help);
-        IniFileDataBaseWriteString (OPT_SECTION, "OscilloscopeDefaultFont", tmp_str, Fd);
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "OscilloscopeDefaultFont", tmp_str, Fd);
     } else {
-        IniFileDataBaseWriteString (OPT_SECTION, "OscilloscopeDefaultFont", NULL, Fd);
+        IniFileDataBaseWriteString (OPT_GUI_SECTION, "OscilloscopeDefaultFont", NULL, Fd);
     }
 
     if (s_main_ini_val.ShouldConnectToRemoteMaster) {
@@ -759,7 +759,7 @@ int WriteBasicConfigurationToIni(MAIN_INI_VAL *sp_main_ini)
 
     IniFileDataBaseWriteUInt (OPT_SECTION, "ExternProcessLoginSocketPort", s_main_ini_val.ExternProcessLoginSocketPortIni, Fd);
 
-    IniFileDataBaseWriteYesNo(OPT_SECTION, "DarkMode", s_main_ini_val.ShouldUseDarkModeIni, Fd);
+    IniFileDataBaseWriteYesNo(OPT_GUI_SECTION, "DarkMode", s_main_ini_val.ShouldUseDarkModeIni, Fd);
 
     return 0;
 }

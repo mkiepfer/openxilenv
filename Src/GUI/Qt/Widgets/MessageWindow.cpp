@@ -22,6 +22,7 @@
 extern "C" {
 #include "MyMemory.h"
 #include "MainValues.h"
+#include "IniSectionEntryDefines.h"
 }
 
 static bool IsMessageWindowOpen;
@@ -40,7 +41,7 @@ MessageWindow::MessageWindow(QWidget *parent) :
     ui(new Ui::MessageWindow)
 {
     ui->setupUi(this);
-    m_StayOnTop = ScQt_IniFileDataBaseReadYesNo ("BasicSettings", "MessageWindowStayOnTop", 0, ScQt_GetMainFileDescriptor());
+    m_StayOnTop = ScQt_IniFileDataBaseReadYesNo (OPT_GUI_SECTION, "MessageWindowStayOnTop", 0, ScQt_GetMainFileDescriptor());
     ui->StayOnTopCheckBox->setChecked(m_StayOnTop);
     Qt::WindowFlags flags = this->windowFlags();
     if (m_StayOnTop) {
@@ -66,11 +67,11 @@ void MessageWindow::SetMaxHistoryLines(int par_MaxLines)
 void MessageWindow::WriteToIni()
 {
     int Fd = ScQt_GetMainFileDescriptor();
-    ScQt_IniFileDataBaseWriteInt ("BasicSettings", "MessageWindowXPosition", this->x(), Fd);
-    ScQt_IniFileDataBaseWriteInt ("BasicSettings", "MessageWindowYPosition", this->y(), Fd);
-    ScQt_IniFileDataBaseWriteInt ("BasicSettings", "MessageWindowXSize", this->width(), Fd);
-    ScQt_IniFileDataBaseWriteInt ("BasicSettings", "MessageWindowYSize", this->height(), Fd);
-    ScQt_IniFileDataBaseWriteYesNo ("BasicSettings", "MessageWindowStayOnTop", this->m_StayOnTop, Fd);
+    ScQt_IniFileDataBaseWriteInt (OPT_GUI_SECTION, "MessageWindowXPosition", this->x(), Fd);
+    ScQt_IniFileDataBaseWriteInt (OPT_GUI_SECTION, "MessageWindowYPosition", this->y(), Fd);
+    ScQt_IniFileDataBaseWriteInt (OPT_GUI_SECTION, "MessageWindowXSize", this->width(), Fd);
+    ScQt_IniFileDataBaseWriteInt (OPT_GUI_SECTION, "MessageWindowYSize", this->height(), Fd);
+    ScQt_IniFileDataBaseWriteYesNo (OPT_GUI_SECTION, "MessageWindowStayOnTop", this->m_StayOnTop, Fd);
 }
 
 void MessageWindow::AddMessage(QString par_MessageString)
@@ -167,9 +168,9 @@ void MessagesToGuiThread::AddMessagesToGuiThreadSlot(QString par_Message)
             // Open message window if it is not open
             m_MessageWindow = new MessageWindow(m_Parent);
             int Fd = ScQt_GetMainFileDescriptor();
-            m_MessageWindow->SetMaxHistoryLines (ScQt_IniFileDataBaseReadInt ("BasicSettings", "MessageWindowMaxLines", 1000, Fd));
-            int xpos = ScQt_IniFileDataBaseReadInt ("BasicSettings", "MessageWindowXPosition", -1, Fd);
-            int ypos = ScQt_IniFileDataBaseReadInt ("BasicSettings", "MessageWindowYPosition", -1, Fd);
+            m_MessageWindow->SetMaxHistoryLines (ScQt_IniFileDataBaseReadInt (OPT_GUI_SECTION, "MessageWindowMaxLines", 1000, Fd));
+            int xpos = ScQt_IniFileDataBaseReadInt (OPT_GUI_SECTION, "MessageWindowXPosition", -1, Fd);
+            int ypos = ScQt_IniFileDataBaseReadInt (OPT_GUI_SECTION, "MessageWindowYPosition", -1, Fd);
             // Are the position valid
             if (xpos < 100) xpos = 100;
             if (ypos < 0) ypos = 0;
