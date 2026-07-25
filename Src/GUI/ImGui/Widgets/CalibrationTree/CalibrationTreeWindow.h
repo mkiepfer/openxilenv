@@ -164,6 +164,30 @@ private:
             m_addressIsInvalid = true;
         }
 
+        /**
+         * @brief Returns the persistent in-place value-editor buffer.
+         * @details The buffer survives across frames so a focus change can still commit the
+         *          typed text (mirrors the Qt delegate committing on editor close). While the
+         *          editor holds focus the cached value must not overwrite it.
+         * @return Mutable pointer to the editor buffer.
+         */
+        [[nodiscard]] char *GetEditBuffer()
+        {
+            return m_editBuffer;
+        }
+        [[nodiscard]] int GetEditBufferSize() const
+        {
+            return static_cast<int>(sizeof(m_editBuffer));
+        }
+        [[nodiscard]] bool IsEditActive() const
+        {
+            return m_editActive;
+        }
+        void SetEditActive(bool par_Active)
+        {
+            m_editActive = par_Active;
+        }
+
     private:
         void ExpandChilds();
         void ExpandRoot();
@@ -190,6 +214,8 @@ private:
         std::vector<std::unique_ptr<TreeNode>> m_children{}; /*!< Lazily expanded children. */
         bool m_childsExpanded{false};             /*!< True once children were materialised. */
         TreeNode *m_pParent{nullptr};             /*!< Parent node (nullptr for the root). */
+        char m_editBuffer[128]{};                 /*!< In-place value-editor buffer (kept across frames). */
+        bool m_editActive{false};                 /*!< True while the value editor holds keyboard focus. */
     };
 
     // Accessors used by TreeNode (mirror the Qt CalibrationTreeModel getters).
@@ -223,6 +249,28 @@ private:
     void RenderNode(TreeNode &par_Node, int par_ValueColumn, int par_AddressColumn, int par_TypeColumn,
                     int &io_RowId);
 
+    /**
+     * @brief Captures the live table column widths into the persisted width members.
+     * @details Reads ImGuiTableColumn::WidthGiven keyed by the Qt field index carried in the
+     *          column UserID, so WriteConfig round-trips the exact on-screen layout. Must be
+     *          called while the calibration-tree table is the current ImGui table.
+     */
+    void CaptureColumnWidths();
+
+    /**
+     * @brief Rebuilds the in-memory include/exclude filter from the edited pattern lists.
+     * @details Writes the current pattern vectors (and the main filter) into a scratch in-memory
+     *          ini and feeds them through BuildIncludeExcludeFilterFromIni, so the label-only
+     *          filter arrays are produced by the core exactly as on load. Swaps in the new filter
+     *          and resets the tree. A no-op if the scratch ini cannot be created.
+     */
+    void RebuildIncludeExcludeFilter();
+
+    /**
+     * @brief Refreshes the editable pattern lists and buffers from the active filter model.
+     */
+    void SyncFilterListsFromModel();
+
     IWindowType *m_pType{nullptr};       /*!< Owning window type. */
 
     std::string m_processName{};         /*!< Bound external process name. */
@@ -248,6 +296,12 @@ private:
     int m_columnWidthType{-1};    /*!< Persisted type column width (round-trip only). */
 
     char m_processBuffer[256]{};  /*!< Settings text buffer for the process name. */
+
+    std::vector<std::string> m_includePatterns{}; /*!< Editable include-filter patterns. */
+    std::vector<std::string> m_excludePatterns{}; /*!< Editable exclude-filter patterns. */
+    char m_filterBuffer[256]{};        /*!< Main-filter editor buffer. */
+    char m_includeInputBuffer[256]{};  /*!< New include-pattern entry buffer. */
+    char m_excludeInputBuffer[256]{};  /*!< New exclude-pattern entry buffer. */
 };
 
 } // namespace XilEnvImGui

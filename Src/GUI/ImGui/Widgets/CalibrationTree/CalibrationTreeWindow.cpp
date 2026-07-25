@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 extern "C" {
 #include "BaseMessages.h"
@@ -28,6 +29,31 @@ namespace
 
 constexpr int LABEL_COLUMN{0};
 constexpr int VALUE_TIMEOUT_LOCK_MS{10};
+
+// Qt field indices used as stable ImGui column UserIDs (label/value/address/type), so
+// captured column widths map back to the right persisted member regardless of visibility.
+constexpr int COLUMN_ID_LABEL{0};
+constexpr int COLUMN_ID_VALUE{1};
+constexpr int COLUMN_ID_ADDRESS{2};
+constexpr int COLUMN_ID_TYPE{3};
+
+// Default column widths matching the Qt CalibrationTreeWidget::SetColumnWidth fallbacks.
+constexpr int DEFAULT_WIDTH_LABEL{200};
+constexpr int DEFAULT_WIDTH_ADDRESS{100};
+constexpr int DEFAULT_WIDTH_TYPE{100};
+
+// Bounded silent retries for a transiently unreadable pointer target (Qt prompts and loops;
+// the ImGui port retries a few times before marking the subtree invalid).
+constexpr int POINTER_READ_RETRY_COUNT{4};
+
+/**
+ * @brief Returns a stored pixel column width, or a fallback when none was persisted.
+ */
+float ColumnInitWidth(int par_StoredWidth, int par_DefaultWidth)
+{
+    return (0 < par_StoredWidth) ? static_cast<float>(par_StoredWidth)
+                                 : static_cast<float>(par_DefaultWidth);
+}
 
 /**
  * @brief Builds the absolute-address hex string used by the Qt address column.
@@ -450,12 +476,20 @@ std::uint64_t CalibrationTreeWindow::TreeNode::ResolveAddress(bool &ret_Ok)
             ret_Ok = true;
             return m_pointsToAddress;
         }
-        if (scm_read_bytes(m_address, pid, static_cast<char *>(static_cast<void *>(&m_pointsToAddress)),
-                           sizeof(m_pointsToAddress)) == static_cast<int>(sizeof(m_pointsToAddress)))
+        // Bounded silent retry: a pointer target can be transiently unreadable while the extern
+        // process is halted in a debugger. Qt shows a continue/ignore prompt and loops; here we
+        // retry a few times (inside the already-held process lock) before giving up, so a brief
+        // stall recovers instead of the subtree staying invalid until a reset.
+        for (int attempt{0}; attempt < POINTER_READ_RETRY_COUNT; ++attempt)
         {
-            m_pointsToAddressIsResolved = true;
-            ret_Ok = true;
-            return m_pointsToAddress;
+            if (scm_read_bytes(m_address, pid,
+                               static_cast<char *>(static_cast<void *>(&m_pointsToAddress)),
+                               sizeof(m_pointsToAddress)) == static_cast<int>(sizeof(m_pointsToAddress)))
+            {
+                m_pointsToAddressIsResolved = true;
+                ret_Ok = true;
+                return m_pointsToAddress;
+            }
         }
         ret_Ok = false;
         return 0;
@@ -507,6 +541,31 @@ void CalibrationTreeWindow::TreeNode::WriteValue(const char *par_Text)
     {
         return;
     }
+    // Clamp the entered value to the leaf's blackboard-type range before writing, mirroring the
+    // Qt edit delegate (get_datatype_min_max_union in CalibrationTreeDelegateEditor) so that e.g.
+    // 300 typed into a signed char is clamped to 127 instead of wrapping.
+    double minValue{0.0};
+    double maxValue{0.0};
+    if (0 == get_datatype_min_max_value(m_typeCache, &minValue, &maxValue))
+    {
+        double asDouble{0.0};
+        if (0 == bbvari_to_double(m_typeCache, value, &asDouble))
+        {
+            double clamped{asDouble};
+            if (clamped < minValue)
+            {
+                clamped = minValue;
+            }
+            else if (clamped > maxValue)
+            {
+                clamped = maxValue;
+            }
+            if (clamped != asDouble)
+            {
+                (void)double_to_bbvari(m_typeCache, &value, clamped);
+            }
+        }
+    }
     const int pid{m_pOwner->GetPid()};
     (void)WriteValuesToExternProcessViaAddressStopScheduler(m_pOwner->GetDebugInfos(), pid, 1, &m_address,
                                                             &m_typeNr, &value, 5000, 1);
@@ -532,6 +591,7 @@ CalibrationTreeWindow::CalibrationTreeWindow(IWindowType *par_Type, std::string 
     SetName(std::move(par_Name));
     m_uniqueNumber = AquireUniqueNumber();
     ResetTree();
+    SyncFilterListsFromModel();
 }
 
 CalibrationTreeWindow::~CalibrationTreeWindow()
@@ -699,13 +759,21 @@ void CalibrationTreeWindow::RenderNode(TreeNode &par_Node, int par_ValueColumn, 
         }
         if (par_Node.IsValidBaseElement())
         {
-            char editBuffer[128];
-            std::snprintf(editBuffer, sizeof(editBuffer), "%s", value.c_str());
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            if (ImGui::InputText("##val", editBuffer, sizeof(editBuffer),
-                                 ImGuiInputTextFlags_EnterReturnsTrue))
+            // Only refresh the editor buffer from the cached value while the user is not editing,
+            // so a live re-read does not clobber in-progress input.
+            if (!par_Node.IsEditActive())
             {
-                par_Node.WriteValue(editBuffer);
+                std::snprintf(par_Node.GetEditBuffer(), par_Node.GetEditBufferSize(), "%s",
+                              value.c_str());
+            }
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            ImGui::InputText("##val", par_Node.GetEditBuffer(), par_Node.GetEditBufferSize());
+            par_Node.SetEditActive(ImGui::IsItemActive());
+            // Commit on Enter *and* on focus-loss (tab/click away), matching the Qt delegate that
+            // writes back whenever its editor closes. IsItemDeactivatedAfterEdit fires for both.
+            if (ImGui::IsItemDeactivatedAfterEdit())
+            {
+                par_Node.WriteValue(par_Node.GetEditBuffer());
             }
         }
         else
@@ -734,6 +802,102 @@ void CalibrationTreeWindow::RenderNode(TreeNode &par_Node, int par_ValueColumn, 
     }
 
     ImGui::PopID();
+}
+
+void CalibrationTreeWindow::CaptureColumnWidths()
+{
+    const ImGuiTable *pTable{ImGui::GetCurrentTable()};
+    if (nullptr == pTable)
+    {
+        return;
+    }
+    for (int n{0}; n < pTable->ColumnsCount; ++n)
+    {
+        const ImGuiTableColumn &column{pTable->Columns[n]};
+        if (0.0f >= column.WidthGiven)
+        {
+            continue;
+        }
+        const int width{static_cast<int>(column.WidthGiven)};
+        switch (static_cast<int>(column.UserID))
+        {
+        case COLUMN_ID_LABEL:
+            m_columnWidthLabel = width;
+            break;
+        case COLUMN_ID_VALUE:
+            m_columnWidthValue = width;
+            break;
+        case COLUMN_ID_ADDRESS:
+            m_columnWidthAddress = width;
+            break;
+        case COLUMN_ID_TYPE:
+            m_columnWidthType = width;
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void CalibrationTreeWindow::SyncFilterListsFromModel()
+{
+    m_includePatterns.clear();
+    m_excludePatterns.clear();
+    if (nullptr != m_pIncExcFilter)
+    {
+        for (int i{0}; i < m_pIncExcFilter->IncludeSize; ++i)
+        {
+            if (nullptr != m_pIncExcFilter->IncludeArray[i])
+            {
+                m_includePatterns.emplace_back(m_pIncExcFilter->IncludeArray[i]);
+            }
+        }
+        for (int i{0}; i < m_pIncExcFilter->ExcludeSize; ++i)
+        {
+            if (nullptr != m_pIncExcFilter->ExcludeArray[i])
+            {
+                m_excludePatterns.emplace_back(m_pIncExcFilter->ExcludeArray[i]);
+            }
+        }
+    }
+    std::snprintf(m_filterBuffer, sizeof(m_filterBuffer), "%s", m_filter.c_str());
+}
+
+void CalibrationTreeWindow::RebuildIncludeExcludeFilter()
+{
+    char scratchName[64];
+    std::snprintf(scratchName, sizeof(scratchName), "__caltree_filter_%d__", m_uniqueNumber);
+    const int fd{IniFileDataBaseCreateAndOpenNewIniFile(scratchName)};
+    if (0 > fd)
+    {
+        return;
+    }
+    // Drive the exact keys BuildIncludeExcludeFilterFromIni reads, so the core produces the
+    // label-only filter arrays for us (no manual char** allocation / no core changes).
+    constexpr const char *SECTION{"Filter"};
+    (void)IniFileDataBaseWriteString(SECTION, "filter", m_filter.c_str(), fd);
+    char entry[64];
+    for (std::size_t i{0}; i < m_includePatterns.size(); ++i)
+    {
+        std::snprintf(entry, sizeof(entry), "IncludeFilter_%d", static_cast<int>(i));
+        (void)IniFileDataBaseWriteString(SECTION, entry, m_includePatterns[i].c_str(), fd);
+    }
+    for (std::size_t i{0}; i < m_excludePatterns.size(); ++i)
+    {
+        std::snprintf(entry, sizeof(entry), "ExcludeFilter_%d", static_cast<int>(i));
+        (void)IniFileDataBaseWriteString(SECTION, entry, m_excludePatterns[i].c_str(), fd);
+    }
+    INCLUDE_EXCLUDE_FILTER *pNewFilter{BuildIncludeExcludeFilterFromIni(SECTION, "", fd)};
+    (void)IniFileDataBaseClose(fd);
+    if (nullptr != pNewFilter)
+    {
+        if (nullptr != m_pIncExcFilter)
+        {
+            FreeIncludeExcludeFilter(m_pIncExcFilter);
+        }
+        m_pIncExcFilter = pNewFilter;
+        ResetTree();
+    }
 }
 
 void CalibrationTreeWindow::RenderContent(const WindowContext &par_Context)
@@ -782,18 +946,33 @@ void CalibrationTreeWindow::RenderContent(const WindowContext &par_Context)
                                      ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY};
     if (ImGui::BeginTable("##caltreetable", columnCount, tableFlags))
     {
-        ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthStretch);
+        // Apply the persisted pixel widths as init widths (Qt SetColumnWidth). The value column
+        // is the stretch filler when shown (Qt makes it fill the remaining width); otherwise the
+        // label column stretches so the tree fills the window. The Qt field index is carried in
+        // the column UserID so CaptureColumnWidths can map live widths back to the right member.
+        const bool valueShown{0 <= valueColumn};
+        ImGui::TableSetupColumn("label",
+                                valueShown ? ImGuiTableColumnFlags_WidthFixed
+                                           : ImGuiTableColumnFlags_WidthStretch,
+                                valueShown ? ColumnInitWidth(m_columnWidthLabel, DEFAULT_WIDTH_LABEL)
+                                           : 0.0f,
+                                static_cast<ImGuiID>(COLUMN_ID_LABEL));
         if (0 <= valueColumn)
         {
-            ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch, 0.0f,
+                                    static_cast<ImGuiID>(COLUMN_ID_VALUE));
         }
         if (0 <= addressColumn)
         {
-            ImGui::TableSetupColumn("address", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("address", ImGuiTableColumnFlags_WidthFixed,
+                                    ColumnInitWidth(m_columnWidthAddress, DEFAULT_WIDTH_ADDRESS),
+                                    static_cast<ImGuiID>(COLUMN_ID_ADDRESS));
         }
         if (0 <= typeColumn)
         {
-            ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthFixed,
+                                    ColumnInitWidth(m_columnWidthType, DEFAULT_WIDTH_TYPE),
+                                    static_cast<ImGuiID>(COLUMN_ID_TYPE));
         }
         ImGui::TableHeadersRow();
 
@@ -805,6 +984,7 @@ void CalibrationTreeWindow::RenderContent(const WindowContext &par_Context)
                 RenderNode(*child, valueColumn, addressColumn, typeColumn, rowId);
             }
         }
+        CaptureColumnWidths();
         ImGui::EndTable();
     }
 }
@@ -824,12 +1004,131 @@ void CalibrationTreeWindow::RenderSettingsPopup()
         }
     }
 
+    // Process combo of the running (non-internal) processes, mirroring the Qt
+    // ConfigCalibrationTreeViewDialog process combo (same 2|0x100 iterator, IsInternalProcess
+    // filter). A not-running configured process still shows as the current label.
+    const char *pComboPreview{m_processName.empty() ? "(select process)" : m_processName.c_str()};
+    ImGui::SetNextItemWidth(200.0f);
+    if (ImGui::BeginCombo("##processcombo", pComboPreview))
+    {
+        READ_NEXT_PROCESS_NAME *pProcesses{init_read_next_process_name(2 | 0x100)};
+        if (nullptr != pProcesses)
+        {
+            char *pName{nullptr};
+            while (nullptr != (pName = read_next_process_name(pProcesses)))
+            {
+                if (0 == IsInternalProcess(pName))
+                {
+                    const bool selected{0 == Compare2ProcessNames(pName, m_processName.c_str())};
+                    if (ImGui::Selectable(pName, selected))
+                    {
+                        std::snprintf(m_processBuffer, sizeof(m_processBuffer), "%s", pName);
+                        if (0 != Compare2ProcessNames(pName, m_processName.c_str()))
+                        {
+                            SetProcessName(pName);
+                        }
+                    }
+                }
+            }
+            close_read_next_process_name(pProcesses);
+        }
+        ImGui::EndCombo();
+    }
+
     ImGui::Separator();
     if (ImGui::Button("Reload values (F5)"))
     {
         if (nullptr != m_root)
         {
             m_root->InvalidateCache();
+        }
+    }
+
+    // Include/exclude + main filter editor (mirrors the Qt ConfigCalibrationTreeViewDialog Filter
+    // widget). Edits stay local until "Apply filter" rebuilds the in-memory filter and re-reads
+    // the tree; the applied filter is persisted verbatim by WriteConfig.
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("Filter"))
+    {
+        ImGui::TextUnformatted("Main filter:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("##mainfilter", m_filterBuffer, sizeof(m_filterBuffer));
+
+        ImGui::TextUnformatted("Include patterns:");
+        ImGui::PushID("include");
+        for (std::size_t i{0}; i < m_includePatterns.size();)
+        {
+            ImGui::PushID(static_cast<int>(i));
+            bool removed{false};
+            if (ImGui::SmallButton("X"))
+            {
+                m_includePatterns.erase(m_includePatterns.begin() + static_cast<std::ptrdiff_t>(i));
+                removed = true;
+            }
+            else
+            {
+                ImGui::SameLine();
+                ImGui::TextUnformatted(m_includePatterns[i].c_str());
+            }
+            ImGui::PopID();
+            if (!removed)
+            {
+                ++i;
+            }
+        }
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("##incadd", m_includeInputBuffer, sizeof(m_includeInputBuffer));
+        ImGui::SameLine();
+        if (ImGui::Button("Add include"))
+        {
+            if ('\0' != m_includeInputBuffer[0])
+            {
+                m_includePatterns.emplace_back(m_includeInputBuffer);
+                m_includeInputBuffer[0] = '\0';
+            }
+        }
+        ImGui::PopID();
+
+        ImGui::TextUnformatted("Exclude patterns:");
+        ImGui::PushID("exclude");
+        for (std::size_t i{0}; i < m_excludePatterns.size();)
+        {
+            ImGui::PushID(static_cast<int>(i));
+            bool removed{false};
+            if (ImGui::SmallButton("X"))
+            {
+                m_excludePatterns.erase(m_excludePatterns.begin() + static_cast<std::ptrdiff_t>(i));
+                removed = true;
+            }
+            else
+            {
+                ImGui::SameLine();
+                ImGui::TextUnformatted(m_excludePatterns[i].c_str());
+            }
+            ImGui::PopID();
+            if (!removed)
+            {
+                ++i;
+            }
+        }
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("##excadd", m_excludeInputBuffer, sizeof(m_excludeInputBuffer));
+        ImGui::SameLine();
+        if (ImGui::Button("Add exclude"))
+        {
+            if ('\0' != m_excludeInputBuffer[0])
+            {
+                m_excludePatterns.emplace_back(m_excludeInputBuffer);
+                m_excludeInputBuffer[0] = '\0';
+            }
+        }
+        ImGui::PopID();
+
+        if (ImGui::Button("Apply filter"))
+        {
+            m_filter = m_filterBuffer;
+            RebuildIncludeExcludeFilter();
         }
     }
 
@@ -938,6 +1237,7 @@ void CalibrationTreeWindow::ReadConfig(int par_FileDescriptor, const char *par_S
         FreeIncludeExcludeFilter(m_pIncExcFilter);
     }
     m_pIncExcFilter = BuildIncludeExcludeFilterFromIni(par_Section, "", par_FileDescriptor);
+    SyncFilterListsFromModel();
 
     SetProcessName(processBuffer);
 }
