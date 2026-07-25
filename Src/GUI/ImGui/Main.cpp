@@ -17,6 +17,7 @@
 #include "Framework/A2LCalBridge.h"
 #include "Framework/BlackboardDialogs.h"
 #include "Framework/BusConfigDialogs.h"
+#include "Framework/CanConfigTree.h"
 #include "Framework/ControlDialogs.h"
 #include "Framework/ConversionDialogs.h"
 #include "Framework/DebugDialogs.h"
@@ -270,6 +271,10 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             {
                 busConfig.OpenCanConfig();
             }
+            if (ImGui::MenuItem("Variant/object/signal editor..."))
+            {
+                XilEnvImGui::CanConfigTreeManager::GetInstance().OpenEditor();
+            }
             if (ImGui::MenuItem("Import DBC..."))
             {
                 busConfig.OpenDbcImport();
@@ -349,6 +354,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven CAN / CCP / XCP / XCP-over-Ethernet configuration and DBC import.
     XilEnvImGui::BusConfigDialogManager::GetInstance().Render();
+
+    // Menu-driven CAN variant/object/signal tree editor.
+    XilEnvImGui::CanConfigTreeManager::GetInstance().Render();
 
     // Menu-driven engine-control dialogs (process/scheduler/barrier config, hotkeys, about).
     XilEnvImGui::ControlDialogManager::GetInstance().Render();

@@ -100,6 +100,7 @@ add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
     ${implot_SOURCE_DIR}/implot.cpp
@@ -108,6 +109,7 @@ add_library(imgui STATIC
 target_include_directories(imgui PUBLIC
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
+    ${imgui_SOURCE_DIR}/misc/cpp
     ${implot_SOURCE_DIR})
 
 target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
@@ -139,6 +141,7 @@ target_sources(XilEnvImGui PRIVATE
     Framework/A2LCalBridge.cpp
     Framework/BlackboardDialogs.cpp
     Framework/BusConfigDialogs.cpp
+    Framework/CanConfigTree.cpp
     Framework/ControlDialogs.cpp
     Framework/ConversionDialogs.cpp
     Framework/DebugDialogs.cpp
