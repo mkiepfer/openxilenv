@@ -10,6 +10,8 @@
 
 #include "Platform.h"
 
+#include "Framework/WindowManagerBridge.h"
+
 extern "C" {
 #include "Scheduler.h"
 #include "RpcSocketServer.h"
@@ -183,6 +185,29 @@ int ExecuteCommand(GuiCommand &par_Command)
 {
     switch (par_Command.type)
     {
+    case GuiCommandType::OpenWindowByName:
+        // Cross-thread (script/RPC) open: create/show the window on the render
+        // thread. The menu path opens windows directly and never routes here.
+        return XilEnvImGui::WmOpenWindowByName(par_Command.arg0.c_str());
+
+    case GuiCommandType::CloseWindowByName:
+        return XilEnvImGui::WmCloseWindowByName(par_Command.arg0.c_str());
+
+    case GuiCommandType::IsWindowOpen:
+        return XilEnvImGui::WmIsWindowOpen(par_Command.arg0.c_str());
+
+    case GuiCommandType::SelectSheet:
+        return XilEnvImGui::WmSelectSheet(par_Command.arg0.c_str());
+
+    case GuiCommandType::AddSheet:
+        return XilEnvImGui::WmAddSheet(par_Command.arg0.c_str());
+
+    case GuiCommandType::DeleteSheet:
+        return XilEnvImGui::WmDeleteSheet(par_Command.arg0.c_str());
+
+    case GuiCommandType::RenameSheet:
+        return XilEnvImGui::WmRenameSheet(par_Command.arg0.c_str(), par_Command.arg1.c_str());
+
     case GuiCommandType::IsScriptDialogClosed:
         // No script dialog exists yet: report "closed" so a polling script
         // never blocks waiting for a window that will never open.

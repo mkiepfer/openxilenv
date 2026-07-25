@@ -119,10 +119,18 @@ target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 # CMakeLists.txt (mirrors how Src/GUI/Qt appends to XilEnvGui).                 #
 ################################################################################
 
+# The windowing framework and widget ports live in subdirectories; expose this
+# root as an include dir so headers resolve as "Framework/..." / "Widgets/...".
+target_include_directories(XilEnvImGui PRIVATE ${XILENV_IMGUI_GUI_ROOT})
+
 target_sources(XilEnvImGui PRIVATE
     Main.cpp
     ImGuiSyncWithOtherThreads.cpp
     GuiBridgeStubs.cpp
-    OscilloscopeCyclic.c)
+    OscilloscopeCyclic.c
+    Framework/WindowTypeRegistry.cpp
+    Framework/UpdateScheduler.cpp
+    Framework/WindowManager.cpp
+    Widgets/Text/TextWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)

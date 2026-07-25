@@ -13,12 +13,17 @@
 
 #include "MainWinowSyncWithOtherThreads.h"
 
+#include "Framework/UpdateScheduler.h"
+#include "Framework/WindowManager.h"
+#include "Framework/WindowTypeRegistry.h"
+
 extern "C" {
 #include "MainValues.h"
 #include "StartupInit.h"
 #include "ParseCommandLine.h"
 #include "Scheduler.h"
 #include "RpcSocketServer.h"
+#include "IniDataBase.h"
 extern int rm_Terminate(void);
 extern void rm_Kill(void);
 }
@@ -45,9 +50,10 @@ void GlfwErrorCallback(int par_Error, const char *par_Description)
 }
 
 /**
- * @brief Renders the full-viewport dock space, main menu bar and status child.
+ * @brief Renders the full-viewport dock space, main menu bar, windows and status child.
+ * @param[in] par_Context Per-frame render context handed to every window.
  */
-void RenderMainFrame()
+void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 {
     ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
@@ -61,8 +67,19 @@ void RenderMainFrame()
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Window"))
+        {
+            if (ImGui::BeginMenu("New"))
+            {
+                XilEnvImGui::WindowManager::GetInstance().RenderNewWindowMenu();
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
     }
+
+    XilEnvImGui::WindowManager::GetInstance().Render(par_Context);
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
@@ -149,6 +166,15 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Populate the window-type registry and load the persisted sheets/windows.
+    // Both only touch the blackboard and ini database, so they are safe whether
+    // or not a GLFW window comes up later.
+    XilEnvImGui::RegisterBuiltinWindowTypes();
+    XilEnvImGui::WindowManager::GetInstance().LoadLayout(GetMainFileDescriptor());
+
+    XilEnvImGui::UpdateScheduler updateScheduler;
+    XilEnvImGui::WindowContext windowContext;
+
     // Try to bring up a real GLFW/OpenGL window with Dear ImGui. On a headless
     // host (no X11/Wayland backend, or no display) window/context creation
     // fails; the app then falls back to a windowless loop that still drives the
@@ -219,7 +245,12 @@ int main(int argc, char *argv[])
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            RenderMainFrame();
+            const ImGuiIO &frameIo = ImGui::GetIO();
+            windowContext.dpiScale = frameIo.DisplayFramebufferScale.x;
+            updateScheduler.Advance(static_cast<double>(frameIo.DeltaTime) * 1000.0);
+            XilEnvImGui::WindowManager::GetInstance().Update(updateScheduler, windowContext);
+
+            RenderMainFrame(windowContext);
 
             ImGui::Render();
             int displayW{0};
@@ -257,12 +288,18 @@ int main(int argc, char *argv[])
         while (g_running.load())
         {
             DrainGuiCommandQueueFromOtherThread();
+            updateScheduler.Advance(16.0);
+            XilEnvImGui::WindowManager::GetInstance().Update(updateScheduler, windowContext);
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
     }
 
     // Drain anything queued during teardown so no thread stays blocked.
     DrainGuiCommandQueueFromOtherThread();
+
+    // Persist the sheets/windows back into the ini database (routed to the
+    // layout descriptor); the core flushes it to disk on exit like the Qt build.
+    XilEnvImGui::WindowManager::GetInstance().SaveLayout(GetMainFileDescriptor());
 
     StopCore();
 
