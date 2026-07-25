@@ -17,6 +17,7 @@
 #include "Framework/A2LCalBridge.h"
 #include "Framework/BusConfigDialogs.h"
 #include "Framework/ControlDialogs.h"
+#include "Framework/ConversionDialogs.h"
 #include "Framework/DialogManager.h"
 #include "Framework/SettingsDialogs.h"
 #include "Framework/UpdateScheduler.h"
@@ -132,6 +133,11 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             {
                 placeholder("Export hotkeys");
             }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Configure signal conversion..."))
+            {
+                XilEnvImGui::ConversionDialogManager::GetInstance().OpenPicker();
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Control"))
@@ -233,6 +239,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven engine-control dialogs (process/scheduler/barrier config, hotkeys, about).
     XilEnvImGui::ControlDialogManager::GetInstance().Render();
+
+    // Signal-conversion editor dialogs (dispatcher plus type-specific sub-editors).
+    XilEnvImGui::ConversionDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};

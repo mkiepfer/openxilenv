@@ -139,6 +139,7 @@ target_sources(XilEnvImGui PRIVATE
     Framework/A2LCalBridge.cpp
     Framework/BusConfigDialogs.cpp
     Framework/ControlDialogs.cpp
+    Framework/ConversionDialogs.cpp
     Framework/DialogManager.cpp
     Framework/SettingsDialogs.cpp
     Framework/WindowTypeRegistry.cpp
