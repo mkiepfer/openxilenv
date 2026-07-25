@@ -76,7 +76,7 @@ def ini_file_path(xilEnv_source_path: Path) -> Path:
     Raises:
         AssertionError: If the file does not exist.
     """
-    ini_file_path = xilEnv_source_path.joinpath("Samples", "Configurations", "ElectricCarSample.ini")
+    ini_file_path = xilEnv_source_path.joinpath("Samples", "Configurations", "ElectricCarSample.toml")
     if not ini_file_path.is_file():
-        pytest.skip(f"Missing ini file at expected location {ini_file_path}")
+        pytest.skip(f"Missing config file at expected location {ini_file_path}")
     return ini_file_path
