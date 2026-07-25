@@ -104,6 +104,7 @@ private:
         std::string name{};                            /*!< Blackboard variable name. */
         std::int32_t vid{0};                           /*!< Cached VID (>0 when attached). */
         TextDisplayType displayType{TextDisplayType::Decimal}; /*!< Value format. */
+        std::int32_t precision{0};                     /*!< Cached display precision (get_bbvari_format_prec). */
         std::string valueText{"---"};                  /*!< Cached formatted value. */
         std::string unit{};                            /*!< Cached unit string. */
         bool exists{false};                            /*!< Whether the variable is currently defined. */
@@ -111,7 +112,8 @@ private:
 
     void AttachVariable(Variable &par_Variable);
     void DetachVariable(Variable &par_Variable);
-    void AddVariable(const std::string &par_Name, TextDisplayType par_DisplayType);
+    void AddVariable(const std::string &par_Name, TextDisplayType par_DisplayType, bool par_AutoDetectDisplayType);
+    TextDisplayType DetectDisplayType(std::int32_t par_Vid) const;
     void RefreshVariable(Variable &par_Variable);
 
     IWindowType *m_pType{nullptr};      /*!< Owning window type. */

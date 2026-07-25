@@ -101,6 +101,37 @@ void TextWindow::AttachVariable(Variable &par_Variable)
     }
     const VID vid{add_bbvari(par_Variable.name.c_str(), BB_UNKNOWN_WAIT, nullptr)};
     par_Variable.vid = (0 < vid) ? vid : 0;
+    if (0 < par_Variable.vid)
+    {
+        par_Variable.precision = get_bbvari_format_prec(par_Variable.vid);
+    }
+}
+
+TextDisplayType TextWindow::DetectDisplayType(std::int32_t par_Vid) const
+{
+    if (0 >= par_Vid)
+    {
+        return TextDisplayType::Decimal;
+    }
+    // Only defined variables can report a meaningful conversion type.
+    if (BB_UNKNOWN_WAIT == static_cast<enum BB_DATA_TYPES>(get_bbvaritype(par_Vid)))
+    {
+        return TextDisplayType::Decimal;
+    }
+    switch (get_bbvari_conversiontype(par_Vid))
+    {
+    case BB_CONV_FORMULA:
+    case BB_CONV_TEXTREP:
+    case BB_CONV_FACTOFF:
+    case BB_CONV_OFFFACT:
+    case BB_CONV_TAB_INTP:
+    case BB_CONV_TAB_NOINTP:
+    case BB_CONV_RAT_FUNC:
+        // Variables with a conversion default to their physical representation.
+        return TextDisplayType::Physical;
+    default:
+        return TextDisplayType::Decimal;
+    }
 }
 
 void TextWindow::DetachVariable(Variable &par_Variable)
@@ -112,7 +143,8 @@ void TextWindow::DetachVariable(Variable &par_Variable)
     }
 }
 
-void TextWindow::AddVariable(const std::string &par_Name, TextDisplayType par_DisplayType)
+void TextWindow::AddVariable(const std::string &par_Name, TextDisplayType par_DisplayType,
+                            bool par_AutoDetectDisplayType)
 {
     const std::string name{Trim(par_Name)};
     if (name.empty())
@@ -128,8 +160,10 @@ void TextWindow::AddVariable(const std::string &par_Name, TextDisplayType par_Di
     }
     Variable variable;
     variable.name = name;
-    variable.displayType = par_DisplayType;
     AttachVariable(variable);
+    // Match the Qt default: variables with a conversion default to phys, others
+    // to decimal (only when the caller did not specify an explicit type).
+    variable.displayType = par_AutoDetectDisplayType ? DetectDisplayType(variable.vid) : par_DisplayType;
     m_variables.push_back(std::move(variable));
 }
 
@@ -154,6 +188,10 @@ void TextWindow::RefreshVariable(Variable &par_Variable)
     }
     par_Variable.exists = true;
 
+    // Keep the display precision in sync (it may change once the variable is defined).
+    par_Variable.precision = get_bbvari_format_prec(par_Variable.vid);
+    const int precision{(0 <= par_Variable.precision) ? par_Variable.precision : 0};
+
     switch (par_Variable.displayType)
     {
     case TextDisplayType::Hex:
@@ -166,6 +204,9 @@ void TextWindow::RefreshVariable(Variable &par_Variable)
         break;
     case TextDisplayType::Physical:
     {
+        // Text-replacement conversions render their enum text; every other
+        // conversion yields a physical value formatted at the signal precision
+        // (matching QString::number(phys, 'f', precision)).
         int textColor{-1};
         if (0 <= read_bbvari_textreplace(par_Variable.vid, buffer, sizeof(buffer), &textColor))
         {
@@ -174,15 +215,26 @@ void TextWindow::RefreshVariable(Variable &par_Variable)
         else
         {
             const double physValue{read_bbvari_convert_double(par_Variable.vid)};
-            std::snprintf(buffer, sizeof(buffer), "%g", physValue);
+            std::snprintf(buffer, sizeof(buffer), "%.*f", precision, physValue);
             par_Variable.valueText = buffer;
         }
         break;
     }
     case TextDisplayType::Decimal:
     default:
-        (void)bbvari_to_string(type, raw, 10, buffer, sizeof(buffer));
-        par_Variable.valueText = buffer;
+        // Floats honour the per-signal precision (QString::number(v, 'f', prec));
+        // integers use the plain base-10 rendering from bbvari_to_string.
+        if ((BB_FLOAT == type) || (BB_DOUBLE == type))
+        {
+            const double rawDouble{(BB_FLOAT == type) ? static_cast<double>(raw.f) : raw.d};
+            std::snprintf(buffer, sizeof(buffer), "%.*f", precision, rawDouble);
+            par_Variable.valueText = buffer;
+        }
+        else
+        {
+            (void)bbvari_to_string(type, raw, 10, buffer, sizeof(buffer));
+            par_Variable.valueText = buffer;
+        }
         break;
     }
 
@@ -204,7 +256,7 @@ void TextWindow::OnUpdateTick(const WindowContext &par_Context)
 
 void TextWindow::OnAcceptVariableDrop(const std::string &par_VariableName)
 {
-    AddVariable(par_VariableName, TextDisplayType::Decimal);
+    AddVariable(par_VariableName, TextDisplayType::Decimal, true);
 }
 
 void TextWindow::RenderContent(const WindowContext &par_Context)
@@ -318,7 +370,7 @@ void TextWindow::RenderSettingsPopup()
     ImGui::SameLine();
     if (ImGui::Button("Add"))
     {
-        AddVariable(m_addVariableBuffer, TextDisplayType::Decimal);
+        AddVariable(m_addVariableBuffer, TextDisplayType::Decimal, true);
         m_addVariableBuffer[0] = '\0';
     }
 
@@ -446,7 +498,8 @@ void TextWindow::ReadConfig(int par_FileDescriptor, const char *par_Section)
         }
         const int typeValue{std::atoi(lineStr.substr(0, comma).c_str())};
         const std::string name{Trim(lineStr.substr(comma + 1))};
-        AddVariable(name, static_cast<TextDisplayType>(typeValue));
+        // Config stores an explicit per-variable display type (E<i>="<type>,<name>").
+        AddVariable(name, static_cast<TextDisplayType>(typeValue), false);
     }
 
     m_columnAlignmentName =
