@@ -195,4 +195,47 @@ TEST(IniDataBaseTomlPersistenceTest, SaveClose_Reopen_RoundTripsValuesAndBlob)
     std::remove(pre_path);
 }
 
+// Engine/layout split: once a layout descriptor is set, "GUI/"-prefixed sections
+// addressed through the (engine) main descriptor are transparently redirected to
+// the layout file, while engine sections stay in the engine file. Verified by
+// turning routing off and inspecting the physical placement in each file.
+TEST(IniDataBaseLayoutSplitTest, GuiSectionsRouteToLayoutDescriptor)
+{
+    const char* pre_engine_path = "xilenv_split_engine.toml";
+    const char* pre_layout_path = "xilenv_split_layout.toml";
+
+    IniFileDataBaseInit();
+    int test_engineFd = IniFileDataBaseCreateAndOpenNewIniFile(pre_engine_path);
+    int test_layoutFd = IniFileDataBaseCreateAndOpenNewIniFile(pre_layout_path);
+    ASSERT_GE(test_engineFd, 0);
+    ASSERT_GE(test_layoutFd, 0);
+
+    SetMainFileDescriptor(test_engineFd);
+    SetLayoutFileDescriptor(test_layoutFd);
+
+    // Written through the ENGINE descriptor; the GUI/ section must be redirected.
+    IniFileDataBaseWriteString("GUI/Widgets/Tacho 1", "Variable", "Speed", test_engineFd);
+    IniFileDataBaseWriteInt("Scheduler", "Period", 10, test_engineFd);
+
+    // With routing ON, reading the GUI/ section via the engine fd still finds it.
+    char result_buffer[64]{};
+    IniFileDataBaseReadString("GUI/Widgets/Tacho 1", "Variable", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), test_engineFd);
+    EXPECT_STREQ("Speed", result_buffer);
+
+    // Turn routing OFF and inspect the PHYSICAL placement in each file.
+    SetLayoutFileDescriptor(-1);
+    EXPECT_EQ(0, IniFileDataBaseLookIfSectionExist("GUI/Widgets/Tacho 1", test_engineFd));
+    EXPECT_NE(0, IniFileDataBaseLookIfSectionExist("GUI/Widgets/Tacho 1", test_layoutFd));
+    EXPECT_NE(0, IniFileDataBaseLookIfSectionExist("Scheduler", test_engineFd));
+    EXPECT_EQ(0, IniFileDataBaseLookIfSectionExist("Scheduler", test_layoutFd));
+
+    SetMainFileDescriptor(-1);
+    IniFileDataBaseClose(test_engineFd);
+    IniFileDataBaseClose(test_layoutFd);
+    IniFileDataBaseTerminate();
+    std::remove(pre_engine_path);
+    std::remove(pre_layout_path);
+}
+
 } // namespace

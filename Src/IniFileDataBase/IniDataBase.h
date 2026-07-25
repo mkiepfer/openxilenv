@@ -31,6 +31,13 @@ void SetMainFileDescriptor(int par_FileDescriptor);
 int GetMainFileDescriptor(void);
 void SetMainIniFilename(const char *par_FileName);
 
+// Engine/layout config split: the layout descriptor holds the GUI/desktop state
+// ("GUI/..." sections). Once set, the facade transparently routes "GUI/"-prefixed
+// sections that are addressed via the main descriptor to this one. Leave unset
+// (-1) to keep everything in the main file (headless / legacy behaviour).
+void SetLayoutFileDescriptor(int par_FileDescriptor);
+int GetLayoutFileDescriptor(void);
+
 int IniFileDataBaseInit(void);
 void IniFileDataBaseTerminate(void);
 int IniFileDataBaseOpen(const char *par_Filename);

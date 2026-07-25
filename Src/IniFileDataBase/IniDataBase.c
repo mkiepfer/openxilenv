@@ -530,6 +530,12 @@ int GetFileDescriptorByName(const char *par_Filename)
     return -1;
 }
 
+// Second "main" descriptor for the engine/layout config split: engine config
+// stays on MainFileDescriptor, GUI/desktop state ("GUI/..." sections) is routed
+// to this one. -1 (unset) disables all routing, so headless use and the unit
+// tests behave exactly as before.
+static int LayoutFileDescriptor = -1;
+
 void SetMainFileDescriptor(int par_FileDescriptor)
 {
     MainFileDescriptor = par_FileDescriptor;
@@ -543,6 +549,16 @@ void SetMainIniFilename(const char *par_FileName)
 int GetMainFileDescriptor(void)
 {
     return MainFileDescriptor;
+}
+
+void SetLayoutFileDescriptor(int par_FileDescriptor)
+{
+    LayoutFileDescriptor = par_FileDescriptor;
+}
+
+int GetLayoutFileDescriptor(void)
+{
+    return LayoutFileDescriptor;
 }
 
 
@@ -581,6 +597,23 @@ static int GetIndexByDescriptor(int par_FileDescriptor)
         }
     }
     return -1;
+}
+
+// Engine/layout config split: when a caller passes the main (engine) descriptor
+// but the section is GUI/desktop state ("GUI/..."), transparently redirect it to
+// the layout descriptor. Only active once a layout descriptor has been set, so
+// without the split everything keeps using the descriptor as passed. Public
+// facade functions call this; the internal *NoLock parser path does not, so a
+// file's own sections always load into the descriptor they were opened with.
+static int RouteDescriptorBySection(const char *par_Section, int par_FileDescriptor)
+{
+    if ((LayoutFileDescriptor >= 0) &&
+        (par_FileDescriptor == MainFileDescriptor) &&
+        (par_Section != NULL) &&
+        (strncmp(par_Section, "GUI/", 4) == 0)) {
+        return LayoutFileDescriptor;
+    }
+    return par_FileDescriptor;
 }
 
 static void DeleteFromIniFileDataBase(int par_FileIndex)
@@ -1105,6 +1138,7 @@ int IniFileDataBaseWriteString (const char* par_Section, const char* par_Entry, 
 {
     int Ret;
     INI_ENTER_CS(&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     Ret = IniFileDataBaseWriteStringNoLock (par_Section, par_Entry, par_Text, par_FileDescriptor);
     INI_LEAVE_CS(&IniDBCriticalSection);
     return Ret;
@@ -1197,6 +1231,7 @@ int IniFileDataBaseReadString (const char* par_Section, const char* par_Entry, c
     INI_DB_SECTION_ELEM *Section;
     int Ret;
     INI_ENTER_CS(&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     int FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         Section = GetSection(FileIndex, par_Section);
@@ -1227,6 +1262,7 @@ char *IniFileDataBaseReadStringBufferNoDef (const char* par_Section, const char*
     char *Ret = NULL;
     INI_DB_SECTION_ELEM *Section;
     INI_ENTER_CS(&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         Section = GetSection(FileIndex, par_Section);
@@ -1332,6 +1368,7 @@ int IniFileDataBaseReadSection (const char* par_Section, char* par_Text, int par
 
     INI_ENTER_CS (&IniDBCriticalSection);
 
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         INI_DB_SECTION_ELEM *Section;
@@ -1378,6 +1415,7 @@ char *IniFileDataBaseReadSectionBuffer (const char* par_Section, int par_FileDes
 
     INI_ENTER_CS (&IniDBCriticalSection);
 
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         INI_DB_SECTION_ELEM *Section;
@@ -1434,6 +1472,7 @@ int IniFileDataBaseWriteByteImage (const char* par_Section, const char* par_Entr
 
     INI_ENTER_CS (&IniDBCriticalSection);
 
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         if (par_EntryPrefix == NULL) {
@@ -1564,6 +1603,7 @@ int IniFileDataBaseReadByteImage (const char* par_Section, const char* par_Entry
     }
 
     INI_ENTER_CS(&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         INI_DB_SECTION_ELEM *Section;
@@ -1692,6 +1732,7 @@ int IniFileDataBaseGetNextEntryName (int par_Index, const char *par_Section, cha
     int FileIndex;
     int Ret = -1;
     INI_ENTER_CS (&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         INI_DB_SECTION_ELEM *Section;
@@ -1777,6 +1818,8 @@ int IniFileDataBaseFindNextSectionNameRegExp (int par_Index, const char *par_Fil
 {
     char Section[INI_MAX_SECTION_LENGTH];
     int Index = par_Index;
+    // Route GUI/-filtered section enumeration to the layout descriptor.
+    par_FileDescriptor = RouteDescriptorBySection(par_Filter, par_FileDescriptor);
     do {
         Index = IniFileDataBaseGetNextSectionName (Index, Section, sizeof(Section), par_FileDescriptor);
         if (Index >= 0) {
@@ -1794,6 +1837,7 @@ int IniFileDataBaseLookIfSectionExist (const char *par_Section, int par_FileDesc
     int FileIndex;
     int Ret = 0;
     INI_ENTER_CS (&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         int s;
@@ -1814,6 +1858,7 @@ int IniFileDataBaseGetSectionNumberOfEntrys (const char *par_Section, int par_Fi
     int Ret = -1;
 
     INI_ENTER_CS (&IniDBCriticalSection);
+    par_FileDescriptor = RouteDescriptorBySection(par_Section, par_FileDescriptor);
     FileIndex = GetIndexByDescriptor(par_FileDescriptor);
     if (FileIndex >= 0) {
         INI_DB_SECTION_ELEM *Section;
