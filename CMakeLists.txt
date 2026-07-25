@@ -46,6 +46,10 @@ option(BUILD_WITH_J1939_SUPPORT "Build with J1939 support" OFF)
 option(BUILD_WITH_GATEWAY_VIRTUAL_CAN "Build with virtual CAN gateway" OFF)
 option(BUILD_WITH_PDB_READER_DLL_INTERFACE "Build with PDB reader DLL interface" OFF)
 
+# New Dear ImGui front-end (XilEnvImGui). Migration step M2. Only meaningful for
+# the 64-bit non-examples build where xilenv_core exists; defaults ON there.
+option(XILENV_BUILD_IMGUI_GUI "Build the Dear ImGui front-end (XilEnvImGui)" ON)
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # don't use 'CMAKE_SIZEOF_VOID_P' setup it own 'MY_CMAKE_SIZEOF_VOID_P'
@@ -320,6 +324,53 @@ else()
             target_link_libraries(XilEnv PRIVATE pthread)
             target_link_libraries(XilEnv PRIVATE z)
             target_link_libraries(XilEnv PRIVATE dl)
+        endif()
+
+        ####################################################################
+        #                          XILENVIMGUI                             #
+        #                                                                  #
+        # New Dear ImGui front-end (migration step M2). Links xilenv_core  #
+        # plus the fetched `imgui`/GLFW library and the Src/GUI/ImGui app  #
+        # sources (added by Src/GUI/ImGui/CMakeLists.txt). Like XilEnvGui  #
+        # it compiles the four NO_GUI border files WITHOUT NO_GUI so the   #
+        # GUI-aware code paths are active.                                 #
+        ####################################################################
+
+        if(XILENV_BUILD_IMGUI_GUI)
+            add_executable(XilEnvImGui)
+
+            # Core headers are inherited from xilenv_core (PUBLIC includes);
+            # only the ImGui front-end's own shim headers must be added.
+            target_include_directories(XilEnvImGui PRIVATE Src/GUI/ImGui)
+            target_compile_definitions(XilEnvImGui PRIVATE _M_X64)
+
+            # NO_GUI-dependent border files, compiled here WITHOUT NO_GUI so the
+            # ImGui bridge stubs are exercised (mirrors XilEnvGui).
+            target_sources(XilEnvImGui PRIVATE
+                Src/Global/ParseCommandLine.c
+                Src/Global/StartupInit.c
+                Src/Global/ThrowError.c
+                Src/A2lParser/A2LLink.c)
+
+            target_link_libraries(XilEnvImGui PRIVATE xilenv_core)
+
+            if(WIN32)
+                if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+                    target_compile_options(XilEnvImGui PRIVATE /wd5105)
+                elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+                    target_compile_definitions(XilEnvImGui PRIVATE WINVER=0x0602)
+                    target_compile_definitions(XilEnvImGui PRIVATE _WIN32_WINNT=0x0602)
+                    target_compile_definitions(XilEnvImGui PRIVATE __STDC_FORMAT_MACROS)
+                    target_link_libraries(XilEnvImGui PRIVATE ws2_32)
+                    target_link_libraries(XilEnvImGui PRIVATE Psapi)
+                    target_link_libraries(XilEnvImGui PRIVATE z)
+                endif()
+                target_link_libraries(XilEnvImGui PRIVATE Winmm.lib)
+            else()
+                target_link_libraries(XilEnvImGui PRIVATE pthread)
+                target_link_libraries(XilEnvImGui PRIVATE z)
+                target_link_libraries(XilEnvImGui PRIVATE dl)
+            endif()
         endif()
 
         #
