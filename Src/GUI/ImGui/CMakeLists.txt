@@ -142,6 +142,7 @@ target_sources(XilEnvImGui PRIVATE
     Framework/ControlDialogs.cpp
     Framework/ConversionDialogs.cpp
     Framework/DialogManager.cpp
+    Framework/ImportExportDialogs.cpp
     Framework/SettingsDialogs.cpp
     Framework/WindowTypeRegistry.cpp
     Framework/UpdateScheduler.cpp

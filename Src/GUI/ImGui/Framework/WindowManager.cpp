@@ -235,6 +235,18 @@ void WindowManager::LoadLayout(int par_FileDescriptor)
     m_pendingSelectSheet = m_activeSheet;
 }
 
+void WindowManager::ReloadFromIni(int par_FileDescriptor)
+{
+    // Drop every current window/sheet, then rebuild from the (freshly mutated) ini.
+    m_windowsByName.clear();
+    m_sheets.clear();
+    m_windows.clear();
+    m_activeSheet = 0;
+    m_pendingSelectSheet = -1;
+
+    LoadLayout(par_FileDescriptor);
+}
+
 void WindowManager::SaveLayout(int par_FileDescriptor)
 {
     // Clear every previous sheet section (mirrors Sheets::CleanIni()).

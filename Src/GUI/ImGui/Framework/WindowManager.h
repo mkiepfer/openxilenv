@@ -54,6 +54,16 @@ public:
     void SaveLayout(int par_FileDescriptor);
 
     /**
+     * @brief Discards all in-memory sheets/windows and rebuilds them from the ini database.
+     * @details Used after an out-of-band ini mutation (e.g. sheet import) has added new
+     *          "GUI/OpenWindowsForSheet<N>"/"GUI/Widgets/<name>" sections to the descriptor.
+     *          Destroys every current window instance and re-runs @ref LoadLayout so the new
+     *          sheets become visible.
+     * @param[in] par_FileDescriptor Main ini descriptor ("GUI/" routes to layout.toml).
+     */
+    void ReloadFromIni(int par_FileDescriptor);
+
+    /**
      * @brief Refreshes cached values of the active sheet's windows at their update rate.
      * @param[in] par_Scheduler Frame update scheduler (already advanced this frame).
      * @param[in] par_Context Per-frame context.

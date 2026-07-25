@@ -20,6 +20,7 @@
 #include "Framework/ControlDialogs.h"
 #include "Framework/ConversionDialogs.h"
 #include "Framework/DialogManager.h"
+#include "Framework/ImportExportDialogs.h"
 #include "Framework/SettingsDialogs.h"
 #include "Framework/UpdateScheduler.h"
 #include "Framework/WindowManager.h"
@@ -93,6 +94,57 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
                                   "the scheduler and processes; that plumbing is not reachable from the "
                                   "GUI seam yet. Start XilEnvImGui with the desired ini on the command "
                                   "line instead.");
+            }
+            ImGui::Separator();
+            if (ImGui::BeginMenu("Import/Export"))
+            {
+                XilEnvImGui::ImportExportDialogManager &imex =
+                    XilEnvImGui::ImportExportDialogManager::GetInstance();
+                if (ImGui::MenuItem("Export sheets..."))
+                {
+                    imex.OpenExportSheets();
+                }
+                if (ImGui::MenuItem("Import sheets..."))
+                {
+                    imex.OpenImportSheets();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Export variable properties..."))
+                {
+                    imex.OpenExportVariableProperties();
+                }
+                if (ImGui::MenuItem("Import variable properties..."))
+                {
+                    imex.OpenImportVariableProperties();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Export reference list..."))
+                {
+                    imex.OpenExportReferenceList();
+                }
+                if (ImGui::MenuItem("Import reference list..."))
+                {
+                    imex.OpenImportReferenceList();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Load SVL file..."))
+                {
+                    imex.OpenLoadSvl();
+                }
+                if (ImGui::MenuItem("Load values..."))
+                {
+                    imex.OpenLoadValues();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Import/Export control lamps..."))
+                {
+                    imex.OpenControlLamps();
+                }
+                if (ImGui::MenuItem("Binary compare..."))
+                {
+                    imex.OpenBinaryCompare();
+                }
+                ImGui::EndMenu();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Export A2L file..."))
@@ -186,7 +238,7 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
         {
             if (ImGui::MenuItem("Load SVL file..."))
             {
-                placeholder("Load SVL file");
+                XilEnvImGui::ImportExportDialogManager::GetInstance().OpenLoadSvl();
             }
             if (ImGui::MenuItem("Save process to SVL/SAL file..."))
             {
@@ -263,6 +315,10 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Blackboard/variable dialogs (info, access, internal view, section filter, add-filter, value ops).
     XilEnvImGui::BlackboardDialogManager::GetInstance().Render();
+
+    // File / Import-Export dialogs (sheets, variable properties, reference list, SVL, values,
+    // control lamps, binary compare).
+    XilEnvImGui::ImportExportDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
