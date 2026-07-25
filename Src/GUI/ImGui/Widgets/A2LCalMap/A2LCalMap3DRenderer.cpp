@@ -204,7 +204,9 @@ void A2LCalMap3DRenderer::PaintAxis(ImDrawList *par_pDrawList, const ImVec2 &par
     }
     if (0x04 == (par_AxisFlag & 0x04))
     {
-        drawAxis(zAxis, 2, "", "");
+        // Qt draws the Z axis with an empty input and the value/map unit (literal "ZUnit" fallback).
+        const char *zUnit{par_Data.GetMapUnit()};
+        drawAxis(zAxis, 2, "", ((nullptr != zUnit) && (0 != zUnit[0])) ? zUnit : "ZUnit");
     }
 }
 

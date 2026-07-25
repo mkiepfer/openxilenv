@@ -726,6 +726,26 @@ int A2LCalMapData::ChangeValueOP(int par_Op, double par_Value, AxisType par_Axis
     return 0;
 }
 
+int A2LCalMapData::ChangeSelectedMapValues(int par_Op, double par_Value)
+{
+    int ret{0};
+    const int xDim{GetXDim()};
+    const int yDim{GetYDim()};
+    for (int x{0}; x < xDim; ++x)
+    {
+        for (int y{0}; y < yDim; ++y)
+        {
+            if (IsPicked(x, y))
+            {
+                ret = ret || (0 != ChangeValueOP(par_Op, par_Value, AxisType::Map, x, y));
+            }
+        }
+    }
+    // Qt writes the whole grid back once after nudging every picked cell (no read-back).
+    (void)WriteDataToTargetLink(false);
+    return ret;
+}
+
 int A2LCalMapData::WriteDataToTargetLink(bool par_Readback)
 {
     if ((0 < m_linkNo) && (0 <= m_getDataChannelNo))
@@ -847,6 +867,18 @@ bool A2LCalMapData::IsPicked(int par_X, int par_Y) const
         return false;
     }
     return (0 != m_pickMap[static_cast<size_t>(pos)]);
+}
+
+bool A2LCalMapData::HasPickedCells() const
+{
+    for (const char flag : m_pickMap)
+    {
+        if (0 != flag)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void A2LCalMapData::ChangeSelectionOfAll(bool par_Select)

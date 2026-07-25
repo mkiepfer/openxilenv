@@ -151,6 +151,18 @@ public:
     int ChangeValueOP(int par_Op, double par_Value, AxisType par_Axis, int par_X, int par_Y);
 
     /**
+     * @brief Applies one operation to every currently picked map cell and writes them back.
+     * @details Mirrors the Qt A2LCalMapModel::ChangeSelectedMapValues: iterates the whole grid,
+     *          applies par_Op/par_Value to each picked cell via ChangeValueOP (AxisType::Map) and
+     *          pushes the result to the link once via WriteDataToTargetLink. Used by the mouse-wheel
+     *          bulk nudge.
+     * @param[in] par_Op Operation code forwarded to ChangeValueOP (e.g. 1 = add-but-minimum-inc/dec).
+     * @param[in] par_Value Operand forwarded to ChangeValueOP.
+     * @return 0 when all cell edits succeeded, non-zero when at least one failed.
+     */
+    int ChangeSelectedMapValues(int par_Op, double par_Value);
+
+    /**
      * @brief Pushes the whole grid back over the link (direction 1 = write).
      * @param[in] par_Readback When true a fresh read is requested afterwards.
      * @return 0 on success.
@@ -178,6 +190,13 @@ public:
     void GetLastPick(int *ret_XPick, int *ret_YPick) const;
     void SetPick(int par_X, int par_Y, int par_Op);
     [[nodiscard]] bool IsPicked(int par_X, int par_Y) const;
+
+    /**
+     * @brief Reports whether at least one map cell is currently picked.
+     * @return True when any cell in the pick map is set.
+     */
+    [[nodiscard]] bool HasPickedCells() const;
+
     void ChangeSelectionOfAll(bool par_Select);
 
     [[nodiscard]] double GetMaxMinusMin(int par_Axis) const;

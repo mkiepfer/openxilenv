@@ -161,37 +161,65 @@ void A2LCalMapWindow::Render3DView(const ImVec2 &par_Size)
                            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
     const bool hovered{ImGui::IsItemHovered()};
 
+    // A fresh press starts a potential rotation; clear the drag flag so the release can tell a
+    // click (-> pick) apart from a drag (-> rotate only).
+    if (ImGui::IsItemActivated())
+    {
+        m_rotationDragged = false;
+    }
+
     // Left-drag rotates (azimuth = horizontal, elevation = vertical).
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
         const ImVec2 delta{ImGui::GetIO().MouseDelta};
         if ((0.0f != delta.x) || (0.0f != delta.y))
         {
+            m_rotationDragged = true;
             m_renderer.RotateZAngle(static_cast<double>(delta.x) * (M_PI / 180.0));
             m_renderer.RotateXAngle(static_cast<double>(delta.y) * (M_PI / 180.0));
             m_renderer.UpdateSinCos();
         }
     }
-    // Plain left-click (released without dragging) picks the nearest point.
+    // Plain left-click (press+release without dragging) picks the nearest point. A release that ended
+    // a rotation drag must not pick, otherwise every rotation would clear the selection.
     else if (ImGui::IsItemDeactivated() && (2 == m_data.GetType() || 1 == m_data.GetType()))
     {
-        const ImVec2 mouse{ImGui::GetIO().MousePos};
-        const bool add{ImGui::GetIO().KeyCtrl};
-        if (m_renderer.PickingMap(static_cast<int>(avail.x / 2.0f), static_cast<int>(avail.y / 2.0f),
-                                  static_cast<int>(mouse.x - origin.x), static_cast<int>(mouse.y - origin.y), add,
-                                  m_data))
+        if (!m_rotationDragged)
         {
-            m_data.SetNoRecursiveSetPickMapFlag(true);
-            m_data.SetNoRecursiveSetPickMapFlag(false);
+            const ImVec2 mouse{ImGui::GetIO().MousePos};
+            const bool add{ImGui::GetIO().KeyCtrl};
+            if (m_renderer.PickingMap(static_cast<int>(avail.x / 2.0f), static_cast<int>(avail.y / 2.0f),
+                                      static_cast<int>(mouse.x - origin.x), static_cast<int>(mouse.y - origin.y),
+                                      add, m_data))
+            {
+                m_data.SetNoRecursiveSetPickMapFlag(true);
+                m_data.SetNoRecursiveSetPickMapFlag(false);
+            }
         }
+        m_rotationDragged = false;
     }
-    // Wheel zooms.
+
+    // Wheel: when cells are picked it nudges them all (Qt A2LCalMapWidget::ChangeValueByWheelSlot);
+    // otherwise it zooms. Qt zoom was keyboard-only (q/a, not ported), so wheel-zoom stays reachable
+    // whenever nothing is selected.
     if (hovered)
     {
         const float wheel{ImGui::GetIO().MouseWheel};
         if (0.0f != wheel)
         {
-            m_renderer.ScaleFactor((wheel > 0.0f) ? 1.1 : (1.0 / 1.1));
+            if (m_data.HasPickedCells())
+            {
+                // Qt maps one wheel notch to a pixelDelta of 120; reproduce that per-notch magnitude.
+                const double delta{static_cast<double>(wheel) * 120.0};
+                const double scale{m_renderer.GetScale()};
+                const double maxMinusMin{m_data.GetMaxMinusMin(2)}; // 2 == map axis
+                const double add{scale * maxMinusMin * (0.01 / 120.0) * delta};
+                (void)m_data.ChangeSelectedMapValues(1, add); // 1 == add-but-minimum-inc/dec-by-one
+            }
+            else
+            {
+                m_renderer.ScaleFactor((wheel > 0.0f) ? 1.1 : (1.0 / 1.1));
+            }
         }
     }
     ImGui::EndChild();

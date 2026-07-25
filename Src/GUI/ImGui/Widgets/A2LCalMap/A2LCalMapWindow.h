@@ -116,6 +116,8 @@ private:
     int m_splitterTableView{0};   /*!< Persisted table pixel height (Qt key). */
     float m_lastContentHeight{0.0f}; /*!< Last content-region height (for splitter round-trip). */
 
+    bool m_rotationDragged{false}; /*!< True while a left-drag rotation is in progress (suppresses the pick on release). */
+
     int m_editAxis{-1};        /*!< Axis currently being edited (-1 none). */
     int m_editX{-1};           /*!< X index of the cell being edited. */
     int m_editY{-1};           /*!< Y index of the cell being edited. */
