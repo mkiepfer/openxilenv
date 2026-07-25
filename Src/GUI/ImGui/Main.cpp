@@ -16,6 +16,7 @@
 
 #include "Framework/A2LCalBridge.h"
 #include "Framework/BusConfigDialogs.h"
+#include "Framework/ControlDialogs.h"
 #include "Framework/DialogManager.h"
 #include "Framework/SettingsDialogs.h"
 #include "Framework/UpdateScheduler.h"
@@ -121,7 +122,7 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             ImGui::Separator();
             if (ImGui::MenuItem("Function hotkeys..."))
             {
-                placeholder("Function hotkeys");
+                XilEnvImGui::ControlDialogManager::GetInstance().OpenHotkeys();
             }
             if (ImGui::MenuItem("Import hotkeys..."))
             {
@@ -130,6 +131,30 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             if (ImGui::MenuItem("Export hotkeys..."))
             {
                 placeholder("Export hotkeys");
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Control"))
+        {
+            XilEnvImGui::ControlDialogManager &control =
+                XilEnvImGui::ControlDialogManager::GetInstance();
+            if (ImGui::MenuItem("Configure process..."))
+            {
+                control.OpenConfigureProcess();
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Scheduler"))
+        {
+            XilEnvImGui::ControlDialogManager &control =
+                XilEnvImGui::ControlDialogManager::GetInstance();
+            if (ImGui::MenuItem("Configure schedulers..."))
+            {
+                control.OpenConfigureSchedulers();
+            }
+            if (ImGui::MenuItem("Configure barriers..."))
+            {
+                control.OpenConfigureBarriers();
             }
             ImGui::EndMenu();
         }
@@ -177,7 +202,7 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
         {
             if (ImGui::MenuItem("About..."))
             {
-                placeholder("About");
+                XilEnvImGui::ControlDialogManager::GetInstance().OpenAbout();
             }
             if (ImGui::MenuItem("Homepage"))
             {
@@ -205,6 +230,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven CAN / CCP / XCP / XCP-over-Ethernet configuration and DBC import.
     XilEnvImGui::BusConfigDialogManager::GetInstance().Render();
+
+    // Menu-driven engine-control dialogs (process/scheduler/barrier config, hotkeys, about).
+    XilEnvImGui::ControlDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
