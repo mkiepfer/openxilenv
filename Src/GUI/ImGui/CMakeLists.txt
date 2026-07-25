@@ -134,11 +134,14 @@ target_sources(XilEnvImGui PRIVATE
     Framework/BlackboardDragDrop.cpp
     Framework/GuiComponents.cpp
     Framework/BoundVariable.cpp
+    Framework/GaugeRenderer.cpp
     Widgets/Text/TextWindow.cpp
     Widgets/VariableList/VariableListWindow.cpp
     Widgets/Slider/SliderWindow.cpp
     Widgets/Enum/EnumWindow.cpp
     Widgets/Bargraph/BargraphWindow.cpp
-    Widgets/Lamps/LampsWindow.cpp)
+    Widgets/Lamps/LampsWindow.cpp
+    Widgets/Knob/KnobWindow.cpp
+    Widgets/Tacho/TachoWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)
