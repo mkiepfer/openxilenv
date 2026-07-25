@@ -559,14 +559,13 @@ namespace
 {
 
 /**
- * @brief Builds oldest->newest (time[s], normalized-value) arrays from one signal's ring buffer.
- * @details Each sample is normalized into [0,1] against this signal's own [par_Min, par_Max],
- *          reproducing the Qt per-signal scaling ((Value-min)/(max-min), OscilloscopeDrawArea.cpp).
- *          This lets signals with very different value ranges each fill the plot height.
+ * @brief Builds oldest->newest (time[s], value) arrays from one signal's ring buffer.
+ * @details Samples are emitted as their real recorded values; the plot's Y axis is scaled to the
+ *          signals' [min,max] so the user reads absolute values directly off the axis.
  * @return Number of valid samples written into out_X/out_Y.
  */
-int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, double par_Min, double par_Max,
-                std::vector<double> &out_X, std::vector<double> &out_Y)
+int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, std::vector<double> &out_X,
+                std::vector<double> &out_Y)
 {
     out_X.clear();
     out_Y.clear();
@@ -593,11 +592,6 @@ int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, double
 
     if ((nullptr != buffer) && (0 < count))
     {
-        double range{par_Max - par_Min};
-        if (0.0 == range)
-        {
-            range = 1.0; // Guard against a degenerate [min,max]; keeps the signal flat, no div-by-zero.
-        }
         out_X.resize(static_cast<size_t>(count));
         out_Y.resize(static_cast<size_t>(count));
         for (int j{0}; j < count; ++j)
@@ -610,7 +604,7 @@ int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, double
                 memPos += bufferDepth;
             }
             out_X[static_cast<size_t>(j)] = static_cast<double>(tEnd - offset) / TIMERCLKFRQ;
-            out_Y[static_cast<size_t>(j)] = (buffer[memPos] - par_Min) / range;
+            out_Y[static_cast<size_t>(j)] = buffer[memPos];
         }
     }
     else
@@ -661,8 +655,36 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
         }
     }
 
-    // Each signal is normalized against its own [min,max] (see BuildSeries), so both Y axes
-    // span a fixed normalized [0,1] range — matching the Qt per-signal scaling.
+    // Y axes span the real value range of their signals (combined [min,max]) so the user reads
+    // absolute values directly. Left and right axes are independent (each their own signals' range).
+    double leftMin{DBL_MAX};
+    double leftMax{-DBL_MAX};
+    double rightMin{DBL_MAX};
+    double rightMax{-DBL_MAX};
+    for (int x{0}; x < OSCI_MAX_SIGNALS; ++x)
+    {
+        if (0 < m_data.vids_left[x])
+        {
+            leftMin = std::min(leftMin, m_data.min_left[x]);
+            leftMax = std::max(leftMax, m_data.max_left[x]);
+        }
+        if (0 < m_data.vids_right[x])
+        {
+            rightMin = std::min(rightMin, m_data.min_right[x]);
+            rightMax = std::max(rightMax, m_data.max_right[x]);
+        }
+    }
+    if (leftMin > leftMax)
+    {
+        leftMin = -1.0;
+        leftMax = 1.0;
+    }
+    if (rightMin > rightMax)
+    {
+        rightMin = -1.0;
+        rightMax = 1.0;
+    }
+
     const std::string plotId{"##osci_" + GetName()};
     if (ImPlot::BeginPlot(plotId.c_str(), ImVec2(-1.0f, -1.0f), ImPlotFlags_None))
     {
@@ -680,10 +702,10 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
         // when stopped, only set limits once so the user can freely pan/zoom.
         const ImPlotCond xCond{m_acquiring ? ImPlotCond_Always : ImPlotCond_Once};
         ImPlot::SetupAxisLimits(ImAxis_X1, tEndSec - m_timeWindow, tEndSec, xCond);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Once);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, leftMin, leftMax, ImPlotCond_Once);
         if (hasRight)
         {
-            ImPlot::SetupAxisLimits(ImAxis_Y2, 0.0, 1.0, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y2, rightMin, rightMax, ImPlotCond_Once);
         }
 
         // -- Left axis signals --
@@ -694,34 +716,15 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const int n{BuildSeries(m_data, true, x, m_data.min_left[x], m_data.max_left[x], m_plotX, m_plotY)};
+            const int n{BuildSeries(m_data, true, x, m_plotX, m_plotY)};
             if (0 >= n)
             {
                 continue;
             }
-            // Legend shows the live blackboard value (direct read) and the newest RAW sample straight
-            // from the ring buffer (independent of any normalization/display). recorded != live =>
-            // the trace pipeline delivers wrong data; recorded == live => it is a display bug.
-            double recordedLeft{0.0};
-            if (0 <= m_data.CriticalSectionNumber)
-            {
-                EnterOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
-                const double *buf{m_data.buffer_left[x]};
-                if ((nullptr != buf) && (0 < m_data.depth_left[x]))
-                {
-                    int idx{m_data.wr_poi_left[x] - 1};
-                    if (0 > idx)
-                    {
-                        idx += m_data.buffer_depth;
-                    }
-                    recordedLeft = buf[idx];
-                }
-                LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
-            }
-            char label[192];
+            // Legend: signal name plus its current value (Qt shows the value in the description panel).
+            char label[160];
             const char *nameLeft{(nullptr != m_data.name_left[x]) ? m_data.name_left[x] : "?"};
-            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f recorded=%.3f]", nameLeft,
-                                read_bbvari_double(m_data.vids_left[x]), recordedLeft);
+            (void)std::snprintf(label, sizeof(label), "%s = %.3f", nameLeft, m_plotY[static_cast<size_t>(n - 1)]);
             if (0 != m_data.color_left[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_left[x]),
@@ -741,32 +744,15 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const int n{BuildSeries(m_data, false, x, m_data.min_right[x], m_data.max_right[x], m_plotX,
-                                    m_plotY)};
+            const int n{BuildSeries(m_data, false, x, m_plotX, m_plotY)};
             if (0 >= n)
             {
                 continue;
             }
-            double recordedRight{0.0};
-            if (0 <= m_data.CriticalSectionNumber)
-            {
-                EnterOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
-                const double *buf{m_data.buffer_right[x]};
-                if ((nullptr != buf) && (0 < m_data.depth_right[x]))
-                {
-                    int idx{m_data.wr_poi_right[x] - 1};
-                    if (0 > idx)
-                    {
-                        idx += m_data.buffer_depth;
-                    }
-                    recordedRight = buf[idx];
-                }
-                LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
-            }
-            char label[192];
+            char label[160];
             const char *nameRight{(nullptr != m_data.name_right[x]) ? m_data.name_right[x] : "?"};
-            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f recorded=%.3f]", nameRight,
-                                read_bbvari_double(m_data.vids_right[x]), recordedRight);
+            (void)std::snprintf(label, sizeof(label), "%s = %.3f", nameRight,
+                                m_plotY[static_cast<size_t>(n - 1)]);
             if (0 != m_data.color_right[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_right[x]),
