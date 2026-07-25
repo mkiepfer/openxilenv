@@ -122,6 +122,7 @@ private:
     int AddSignal(Axis par_Axis, const BlackboardVariablePayload &par_Payload, int par_LineSize = 1);
     void RemoveSignal(Axis par_Axis, int par_Index);
     void FreeAllSignals();
+    void ApplyBufferDepth(int par_NewDepth);
 
     IWindowType *m_pType{nullptr};   /*!< Owning window type. */
     OSCILLOSCOPE_DATA m_data{};      /*!< Sampler state + ring buffers (shared with the scheduler). */

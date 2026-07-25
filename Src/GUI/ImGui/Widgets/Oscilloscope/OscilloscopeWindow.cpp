@@ -28,6 +28,7 @@ extern "C" {
 #include "BlackboardAccess.h"
 #include "GetNotANumber.h"
 #include "IniDataBase.h"
+#include "ThrowError.h"
 #include "OscilloscopeCyclic.h"
 }
 
@@ -397,6 +398,101 @@ void OscilloscopeWindow::FreeAllSignals()
     LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
 }
 
+void OscilloscopeWindow::ApplyBufferDepth(int par_NewDepth)
+{
+    if (par_NewDepth == m_data.buffer_depth)
+    {
+        return;
+    }
+    // The scheduler-thread sampler (OscilloscopeCyclic.c) indexes every per-signal ring buffer
+    // modulo buffer_depth. Growing the depth without growing the already-allocated buffers would
+    // let the sampler write (and BuildSeries read) past the end -> heap corruption. So resize each
+    // active buffer to the new depth under the sampler's critical section, mirroring the Qt config
+    // dialog (OscilloscopeConfigDialog.cpp). On OOM we roll every buffer back to the old depth.
+    if (0 > m_data.CriticalSectionNumber)
+    {
+        m_data.buffer_depth = par_NewDepth; // No sampler attached yet: buffers (re)allocate on next add.
+        return;
+    }
+
+    const int oldDepth{m_data.buffer_depth};
+    int errFlag{0};
+    int i{0};
+
+    EnterOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+    m_data.buffer_depth = par_NewDepth;
+    for (i = 0; i < 21; ++i)
+    {
+        if (nullptr != m_data.buffer_left[i])
+        {
+            double *tmp{static_cast<double *>(
+                my_realloc(m_data.buffer_left[i], static_cast<size_t>(par_NewDepth) * sizeof(double)))};
+            if (nullptr == tmp)
+            {
+                errFlag = 1;
+                break;
+            }
+            m_data.buffer_left[i] = tmp;
+        }
+        if (nullptr != m_data.buffer_right[i])
+        {
+            double *tmp{static_cast<double *>(
+                my_realloc(m_data.buffer_right[i], static_cast<size_t>(par_NewDepth) * sizeof(double)))};
+            if (nullptr == tmp)
+            {
+                errFlag = 1;
+                break;
+            }
+            m_data.buffer_right[i] = tmp;
+        }
+    }
+    if (0 != errFlag)
+    {
+        // Not enough memory: shrink everything already grown back to the old depth so no buffer
+        // ends up smaller than buffer_depth.
+        m_data.buffer_depth = oldDepth;
+        for (; i >= 0; --i)
+        {
+            if (nullptr != m_data.buffer_left[i])
+            {
+                double *tmp{static_cast<double *>(
+                    my_realloc(m_data.buffer_left[i], static_cast<size_t>(oldDepth) * sizeof(double)))};
+                if (nullptr != tmp)
+                {
+                    m_data.buffer_left[i] = tmp;
+                }
+            }
+            if (nullptr != m_data.buffer_right[i])
+            {
+                double *tmp{static_cast<double *>(
+                    my_realloc(m_data.buffer_right[i], static_cast<size_t>(oldDepth) * sizeof(double)))};
+                if (nullptr != tmp)
+                {
+                    m_data.buffer_right[i] = tmp;
+                }
+            }
+        }
+    }
+    // Depth changed under the buffers: the old ring contents no longer map, so restart each ring.
+    for (int k{0}; k < 21; ++k)
+    {
+        m_data.wr_poi_left[k] = 0;
+        m_data.depth_left[k] = 0;
+        m_data.wr_poi_right[k] = 0;
+        m_data.depth_right[k] = 0;
+    }
+    if (m_data.pre_trigger > m_data.buffer_depth)
+    {
+        m_data.pre_trigger = m_data.buffer_depth;
+    }
+    LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+
+    if (0 != errFlag)
+    {
+        ThrowError(1, "oscilloscope: out of memory changing buffer depth");
+    }
+}
+
 void OscilloscopeWindow::StartAcquisition()
 {
     if (0 > m_data.CriticalSectionNumber)
@@ -463,11 +559,14 @@ namespace
 {
 
 /**
- * @brief Builds oldest->newest (time[s], value) arrays from one signal's ring buffer.
+ * @brief Builds oldest->newest (time[s], normalized-value) arrays from one signal's ring buffer.
+ * @details Each sample is normalized into [0,1] against this signal's own [par_Min, par_Max],
+ *          reproducing the Qt per-signal scaling ((Value-min)/(max-min), OscilloscopeDrawArea.cpp).
+ *          This lets signals with very different value ranges each fill the plot height.
  * @return Number of valid samples written into out_X/out_Y.
  */
-int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, std::vector<double> &out_X,
-                std::vector<double> &out_Y)
+int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, double par_Min, double par_Max,
+                std::vector<double> &out_X, std::vector<double> &out_Y)
 {
     out_X.clear();
     out_Y.clear();
@@ -494,6 +593,11 @@ int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, std::v
 
     if ((nullptr != buffer) && (0 < count))
     {
+        double range{par_Max - par_Min};
+        if (0.0 == range)
+        {
+            range = 1.0; // Guard against a degenerate [min,max]; keeps the signal flat, no div-by-zero.
+        }
         out_X.resize(static_cast<size_t>(count));
         out_Y.resize(static_cast<size_t>(count));
         for (int j{0}; j < count; ++j)
@@ -506,7 +610,7 @@ int BuildSeries(OSCILLOSCOPE_DATA &par_Data, bool par_Left, int par_Slot, std::v
                 memPos += bufferDepth;
             }
             out_X[static_cast<size_t>(j)] = static_cast<double>(tEnd - offset) / TIMERCLKFRQ;
-            out_Y[static_cast<size_t>(j)] = buffer[memPos];
+            out_Y[static_cast<size_t>(j)] = (buffer[memPos] - par_Min) / range;
         }
     }
     else
@@ -557,34 +661,8 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
         }
     }
 
-    double leftMin{DBL_MAX};
-    double leftMax{-DBL_MAX};
-    double rightMin{DBL_MAX};
-    double rightMax{-DBL_MAX};
-    for (int x{0}; x < OSCI_MAX_SIGNALS; ++x)
-    {
-        if (0 < m_data.vids_left[x])
-        {
-            leftMin = std::min(leftMin, m_data.min_left[x]);
-            leftMax = std::max(leftMax, m_data.max_left[x]);
-        }
-        if (0 < m_data.vids_right[x])
-        {
-            rightMin = std::min(rightMin, m_data.min_right[x]);
-            rightMax = std::max(rightMax, m_data.max_right[x]);
-        }
-    }
-    if (leftMin > leftMax)
-    {
-        leftMin = -1.0;
-        leftMax = 1.0;
-    }
-    if (rightMin > rightMax)
-    {
-        rightMin = -1.0;
-        rightMax = 1.0;
-    }
-
+    // Each signal is normalized against its own [min,max] (see BuildSeries), so both Y axes
+    // span a fixed normalized [0,1] range — matching the Qt per-signal scaling.
     const std::string plotId{"##osci_" + GetName()};
     if (ImPlot::BeginPlot(plotId.c_str(), ImVec2(-1.0f, -1.0f), ImPlotFlags_None))
     {
@@ -602,10 +680,10 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
         // when stopped, only set limits once so the user can freely pan/zoom.
         const ImPlotCond xCond{m_acquiring ? ImPlotCond_Always : ImPlotCond_Once};
         ImPlot::SetupAxisLimits(ImAxis_X1, tEndSec - m_timeWindow, tEndSec, xCond);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, leftMin, leftMax, ImPlotCond_Once);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Once);
         if (hasRight)
         {
-            ImPlot::SetupAxisLimits(ImAxis_Y2, rightMin, rightMax, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y2, 0.0, 1.0, ImPlotCond_Once);
         }
 
         // -- Left axis signals --
@@ -616,7 +694,7 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const int n{BuildSeries(m_data, true, x, m_plotX, m_plotY)};
+            const int n{BuildSeries(m_data, true, x, m_data.min_left[x], m_data.max_left[x], m_plotX, m_plotY)};
             if (0 >= n)
             {
                 continue;
@@ -641,7 +719,8 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const int n{BuildSeries(m_data, false, x, m_plotX, m_plotY)};
+            const int n{BuildSeries(m_data, false, x, m_data.min_right[x], m_data.max_right[x], m_plotX,
+                                    m_plotY)};
             if (0 >= n)
             {
                 continue;
@@ -685,8 +764,7 @@ void OscilloscopeWindow::RenderSettingsPopup()
     if (ImGui::InputInt("Buffer depth", &bufferDepth))
     {
         bufferDepth = std::max(OSCI_MIN_BUFFER_DEPTH, std::min(OSCI_MAX_BUFFER_DEPTH, bufferDepth));
-        // New depth applies to signals added afterwards; existing buffers keep their size.
-        m_data.buffer_depth = bufferDepth;
+        ApplyBufferDepth(bufferDepth);
     }
 
     bool leftOn{0 != m_data.left_axis_on};
