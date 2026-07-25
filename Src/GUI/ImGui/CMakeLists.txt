@@ -158,6 +158,10 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/A2LCalMap/A2LCalMapData.cpp
     Widgets/A2LCalMap/A2LCalMap3DRenderer.cpp
     Widgets/A2LCalMap/A2LCalMapWindow.cpp
-    Widgets/CalibrationTree/CalibrationTreeWindow.cpp)
+    Widgets/CalibrationTree/CalibrationTreeWindow.cpp
+    Widgets/UserDraw/UserDrawElement.cpp
+    Widgets/UserDraw/UserDrawElements.cpp
+    Widgets/UserDraw/UserDrawParser.cpp
+    Widgets/UserDraw/UserDrawWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)

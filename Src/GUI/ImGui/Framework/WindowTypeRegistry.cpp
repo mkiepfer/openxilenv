@@ -16,6 +16,7 @@
 #include "Widgets/Slider/SliderWindow.h"
 #include "Widgets/Tacho/TachoWindow.h"
 #include "Widgets/Text/TextWindow.h"
+#include "Widgets/UserDraw/UserDrawWindow.h"
 #include "Widgets/VariableList/VariableListWindow.h"
 
 namespace XilEnvImGui
@@ -67,6 +68,7 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<A2LCalSingleWindowType>());
     registry.Register(std::make_unique<A2LCalMapWindowType>());
     registry.Register(std::make_unique<CalibrationTreeWindowType>());
+    registry.Register(std::make_unique<UserDrawWindowType>());
     // Further built-in types follow in later migration steps.
 }
 
