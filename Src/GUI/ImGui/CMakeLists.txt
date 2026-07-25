@@ -131,6 +131,14 @@ target_sources(XilEnvImGui PRIVATE
     Framework/WindowTypeRegistry.cpp
     Framework/UpdateScheduler.cpp
     Framework/WindowManager.cpp
-    Widgets/Text/TextWindow.cpp)
+    Framework/BlackboardDragDrop.cpp
+    Framework/GuiComponents.cpp
+    Framework/BoundVariable.cpp
+    Widgets/Text/TextWindow.cpp
+    Widgets/VariableList/VariableListWindow.cpp
+    Widgets/Slider/SliderWindow.cpp
+    Widgets/Enum/EnumWindow.cpp
+    Widgets/Bargraph/BargraphWindow.cpp
+    Widgets/Lamps/LampsWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)

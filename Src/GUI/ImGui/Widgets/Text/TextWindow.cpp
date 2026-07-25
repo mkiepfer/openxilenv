@@ -12,6 +12,8 @@
 
 #include "imgui.h"
 
+#include "Framework/BlackboardDragDrop.h"
+
 extern "C" {
 #include "Blackboard.h"
 #include "BlackboardAccess.h"
@@ -305,9 +307,26 @@ void TextWindow::RenderContent(const WindowContext &par_Context)
             ImGui::Selectable(variable.name.c_str(), false, ImGuiSelectableFlags_SpanAllColumns);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload("BBVAR", variable.name.c_str(),
-                                          variable.name.size() + 1u);
-                ImGui::TextUnformatted(variable.name.c_str());
+                DragDropDisplayMode mode{DragDropDisplayMode::Unknown};
+                switch (variable.displayType)
+                {
+                case TextDisplayType::Hex:
+                    mode = DragDropDisplayMode::Hex;
+                    break;
+                case TextDisplayType::Binary:
+                    mode = DragDropDisplayMode::Binary;
+                    break;
+                case TextDisplayType::Physical:
+                    mode = DragDropDisplayMode::Physical;
+                    break;
+                case TextDisplayType::Decimal:
+                default:
+                    mode = DragDropDisplayMode::Decimal;
+                    break;
+                }
+                const BlackboardVariablePayload payload{
+                    MakeBlackboardVariablePayloadFromVid(variable.name, variable.vid, mode)};
+                SetBlackboardVariableDragPayload(payload);
                 ImGui::EndDragDropSource();
             }
 
@@ -347,12 +366,10 @@ void TextWindow::RenderContent(const WindowContext &par_Context)
 
     if (ImGui::BeginDragDropTarget())
     {
-        const ImGuiPayload *payload{ImGui::AcceptDragDropPayload("BBVAR")};
-        if (nullptr != payload)
+        BlackboardVariablePayload payload;
+        if (AcceptBlackboardVariableDrop(payload))
         {
-            const std::string dropped{static_cast<const char *>(payload->Data),
-                                      static_cast<size_t>(payload->DataSize > 0 ? payload->DataSize - 1 : 0)};
-            OnAcceptVariableDrop(dropped);
+            OnAcceptVariableDrop(payload.name);
         }
         ImGui::EndDragDropTarget();
     }
