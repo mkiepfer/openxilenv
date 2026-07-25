@@ -16,6 +16,7 @@
 #include "Widgets/Slider/SliderWindow.h"
 #include "Widgets/Tacho/TachoWindow.h"
 #include "Widgets/Text/TextWindow.h"
+#include "Widgets/UserControl/UserControlWindow.h"
 #include "Widgets/UserDraw/UserDrawWindow.h"
 #include "Widgets/VariableList/VariableListWindow.h"
 
@@ -69,6 +70,7 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<A2LCalMapWindowType>());
     registry.Register(std::make_unique<CalibrationTreeWindowType>());
     registry.Register(std::make_unique<UserDrawWindowType>());
+    registry.Register(std::make_unique<UserControlWindowType>());
     // Further built-in types follow in later migration steps.
 }
 

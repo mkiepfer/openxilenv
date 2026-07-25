@@ -162,6 +162,10 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/UserDraw/UserDrawElement.cpp
     Widgets/UserDraw/UserDrawElements.cpp
     Widgets/UserDraw/UserDrawParser.cpp
-    Widgets/UserDraw/UserDrawWindow.cpp)
+    Widgets/UserDraw/UserDrawWindow.cpp
+    Widgets/UserControl/UserControlElement.cpp
+    Widgets/UserControl/UserControlElements.cpp
+    Widgets/UserControl/UserControlParser.cpp
+    Widgets/UserControl/UserControlWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)
