@@ -82,9 +82,16 @@ void SetValueFromBBVari(A2L_SINGLE_VALUE *par_Value, union BB_VARI par_ToValue, 
     switch (par_Value->Type)
     {
     case A2L_ELEM_TYPE_INT:
-        if ((BB_QWORD == par_Type) || (BB_DWORD == par_Type) || (BB_WORD == par_Type) || (BB_BYTE == par_Type))
+        // sc_convert_from_to writes only the narrow union member for BB_BYTE/WORD/DWORD, so reading
+        // par_ToValue.qw would pick up garbage upper bytes. asDouble already read the exact member
+        // above (lossless for <= 32-bit); use the full 64-bit member only for BB_(U)QWORD sources.
+        if (BB_QWORD == par_Type)
         {
-            par_Value->Value.Int = static_cast<int64_t>(par_ToValue.qw);
+            par_Value->Value.Int = par_ToValue.qw;
+        }
+        else if (BB_UQWORD == par_Type)
+        {
+            par_Value->Value.Int = static_cast<int64_t>(par_ToValue.uqw);
         }
         else
         {
@@ -93,7 +100,18 @@ void SetValueFromBBVari(A2L_SINGLE_VALUE *par_Value, union BB_VARI par_ToValue, 
         par_Value->Flags |= A2L_VALUE_FLAG_UPDATE;
         break;
     case A2L_ELEM_TYPE_UINT:
-        par_Value->Value.Uint = static_cast<uint64_t>(asDouble);
+        if (BB_UQWORD == par_Type)
+        {
+            par_Value->Value.Uint = par_ToValue.uqw;
+        }
+        else if (BB_QWORD == par_Type)
+        {
+            par_Value->Value.Uint = static_cast<uint64_t>(par_ToValue.qw);
+        }
+        else
+        {
+            par_Value->Value.Uint = static_cast<uint64_t>(asDouble);
+        }
         par_Value->Flags |= A2L_VALUE_FLAG_UPDATE;
         break;
     case A2L_ELEM_TYPE_DOUBLE:

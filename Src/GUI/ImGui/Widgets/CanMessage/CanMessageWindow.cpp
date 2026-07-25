@@ -207,13 +207,17 @@ double CanMessageWindow::TimestampCalc(const CAN_FIFO_ELEM_HEADER *par_Message) 
 
 CanMessageWindow::MessageLine &CanMessageWindow::FindOrInsertLine(const CAN_FIFO_ELEM_HEADER *par_Message)
 {
-    // Rows are kept sorted by (channel, id, ext) so a binary search finds the slot.
+    // Row identity mirrors Qt BuildChannelExtId = channel<<32 | (ext&1)<<31 | id: only the
+    // extended-frame BIT of ext participates, so classic and FD/J1939 frames on the same id+channel
+    // collapse into ONE row. Rows are kept sorted by (channel, ext&1, id) for a binary search.
+    const int msgExtBit{par_Message->ext & 0x1};
     int low{0};
     int high{static_cast<int>(m_lines.size())};
     while (low < high)
     {
         const int mid{(low + high) / 2};
-        const MessageLine &line{m_lines[static_cast<size_t>(mid)]};
+        MessageLine &line{m_lines[static_cast<size_t>(mid)]};
+        const int lineExtBit{line.ext & 0x1};
         bool less{false};
         bool greater{false};
         if (line.channel != par_Message->channel)
@@ -221,19 +225,20 @@ CanMessageWindow::MessageLine &CanMessageWindow::FindOrInsertLine(const CAN_FIFO
             less = (line.channel < par_Message->channel);
             greater = !less;
         }
+        else if (lineExtBit != msgExtBit)
+        {
+            less = (lineExtBit < msgExtBit);
+            greater = !less;
+        }
         else if (line.id != par_Message->id)
         {
             less = (line.id < par_Message->id);
             greater = !less;
         }
-        else if (line.ext != par_Message->ext)
-        {
-            less = (line.ext < par_Message->ext);
-            greater = !less;
-        }
         else
         {
-            return m_lines[static_cast<size_t>(mid)];
+            line.ext = par_Message->ext; // keep the type column on the latest frame (Qt recomputes it)
+            return line;
         }
         if (less)
         {
@@ -349,10 +354,12 @@ void CanMessageWindow::RecordMessages(int par_ReadElements, const CAN_FIFO_ELEM_
         const double ts{TimestampCalc(message)};
         if (m_waitForFirstMessage)
         {
-            const auto now{std::chrono::system_clock::now().time_since_epoch()};
-            const double msOfEpoch{
+            // Match Qt's Linux time base: CLOCK_MONOTONIC (steady_clock), i.e. ms since boot — NOT
+            // epoch (system_clock), which produced ~483000-hour values in the recorded Time column.
+            const auto now{std::chrono::steady_clock::now().time_since_epoch()};
+            const double msMonotonic{
                 static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count())};
-            m_tsOffset = msOfEpoch - ts;
+            m_tsOffset = msMonotonic - ts;
             m_waitForFirstMessage = false;
         }
         const double t{ts + m_tsOffset};
@@ -693,7 +700,7 @@ void CanMessageWindow::RenderSettingsPopup()
         CAN_ACCEPT_MASK mask{};
         mask.Channel = 0;
         mask.Start = 0;
-        mask.Stop = 0x7FF;
+        mask.Stop = 0x1FFFFFFF; // Qt default — accept the full 29-bit range incl. extended IDs (was 0x7FF).
         mask.Flags = 0;
         m_acceptMasks.push_back(mask);
     }
