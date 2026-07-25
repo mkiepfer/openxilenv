@@ -699,12 +699,29 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            // Legend shows the signal's live blackboard value (direct read) next to the trace, so a
-            // "trace stuck at 0" is instantly distinguishable from a dead binding (live value 0 too).
-            char label[160];
+            // Legend shows the live blackboard value (direct read) and the newest RAW sample straight
+            // from the ring buffer (independent of any normalization/display). recorded != live =>
+            // the trace pipeline delivers wrong data; recorded == live => it is a display bug.
+            double recordedLeft{0.0};
+            if (0 <= m_data.CriticalSectionNumber)
+            {
+                EnterOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+                const double *buf{m_data.buffer_left[x]};
+                if ((nullptr != buf) && (0 < m_data.depth_left[x]))
+                {
+                    int idx{m_data.wr_poi_left[x] - 1};
+                    if (0 > idx)
+                    {
+                        idx += m_data.buffer_depth;
+                    }
+                    recordedLeft = buf[idx];
+                }
+                LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+            }
+            char label[192];
             const char *nameLeft{(nullptr != m_data.name_left[x]) ? m_data.name_left[x] : "?"};
-            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f]", nameLeft,
-                                read_bbvari_double(m_data.vids_left[x]));
+            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f recorded=%.3f]", nameLeft,
+                                read_bbvari_double(m_data.vids_left[x]), recordedLeft);
             if (0 != m_data.color_left[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_left[x]),
@@ -730,10 +747,26 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            char label[160];
+            double recordedRight{0.0};
+            if (0 <= m_data.CriticalSectionNumber)
+            {
+                EnterOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+                const double *buf{m_data.buffer_right[x]};
+                if ((nullptr != buf) && (0 < m_data.depth_right[x]))
+                {
+                    int idx{m_data.wr_poi_right[x] - 1};
+                    if (0 > idx)
+                    {
+                        idx += m_data.buffer_depth;
+                    }
+                    recordedRight = buf[idx];
+                }
+                LeaveOsciWidgetCriticalSection(m_data.CriticalSectionNumber);
+            }
+            char label[192];
             const char *nameRight{(nullptr != m_data.name_right[x]) ? m_data.name_right[x] : "?"};
-            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f]", nameRight,
-                                read_bbvari_double(m_data.vids_right[x]));
+            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f recorded=%.3f]", nameRight,
+                                read_bbvari_double(m_data.vids_right[x]), recordedRight);
             if (0 != m_data.color_right[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_right[x]),
