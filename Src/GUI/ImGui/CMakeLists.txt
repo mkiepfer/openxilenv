@@ -142,6 +142,7 @@ target_sources(XilEnvImGui PRIVATE
     Framework/BlackboardDialogs.cpp
     Framework/BusConfigDialogs.cpp
     Framework/CanConfigTree.cpp
+    Framework/CanErrorDialog.cpp
     Framework/ControlDialogs.cpp
     Framework/ConversionDialogs.cpp
     Framework/DebugDialogs.cpp

@@ -1,11 +1,13 @@
 #include "Framework/CanConfigTree.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <regex>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -689,6 +691,60 @@ void WriteVariant(const CanTreeVariant &par_Variant, int par_VariantNr, int par_
 
 } // namespace
 
+std::vector<CanTreeVariant> SnapshotCanVariantsFromIni(int &out_NumberOfChannels)
+{
+    const int fd{GetMainFileDescriptor()};
+    std::vector<CanTreeVariant> variants;
+
+    const int channelCountExt{IniFileDataBaseReadInt("CAN/Global", "can_controller_count_ext", 0, fd)};
+    const int channelCount{IniFileDataBaseReadInt("CAN/Global", "can_controller_count", 0, fd)};
+    int numberOfChannels{(channelCountExt > channelCount) ? channelCountExt : channelCount};
+    if (1 > numberOfChannels)
+    {
+        numberOfChannels = 1;
+    }
+    if (MAX_CAN_CHANNELS < numberOfChannels)
+    {
+        numberOfChannels = MAX_CAN_CHANNELS;
+    }
+    out_NumberOfChannels = numberOfChannels;
+
+    for (int variantNr = 0;; ++variantNr)
+    {
+        bool exists{false};
+        CanTreeVariant variant{ReadVariant(variantNr, fd, exists)};
+        if (!exists)
+        {
+            break;
+        }
+        variants.push_back(std::move(variant));
+    }
+
+    for (int c = 0; c < numberOfChannels; ++c)
+    {
+        char entry[64];
+        std::snprintf(entry, sizeof(entry), "can_controller%d_variante", c + 1);
+        const std::string list{ReadIniString("CAN/Global", entry, "", fd)};
+        const char *cursor{list.c_str()};
+        while (0 != std::isdigit(static_cast<unsigned char>(*cursor)))
+        {
+            char *next{nullptr};
+            const long v{std::strtol(cursor, &next, 0)};
+            if ((v >= 0) && (v < static_cast<long>(variants.size())))
+            {
+                variants[static_cast<std::size_t>(v)].connectedChannels.at(
+                    static_cast<std::size_t>(c)) = true;
+            }
+            cursor = next;
+            if (',' == *cursor)
+            {
+                ++cursor;
+            }
+        }
+    }
+    return variants;
+}
+
 // =============================================================================
 // CanConfigTreeManager
 // =============================================================================
@@ -1145,6 +1201,9 @@ void CanConfigTreeManager::Render()
         m_open = false;
     }
 
+    RenderJ1939AdditionalsDialog();
+    RenderJ1939MultiPGDialog();
+    RenderSearchDialog();
     RenderFilePicker();
 }
 
@@ -1158,6 +1217,11 @@ void CanConfigTreeManager::RenderTree()
     if (ImGui::Button("Paste variant") && (CanTreeSelectionKind::Variant == m_clipboardKind))
     {
         RequestOp(CanTreePendingOp::PasteVariant, -1, -1, -1);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Search..."))
+    {
+        OpenSearchDialog();
     }
     ImGui::SameLine();
     ImGui::TextDisabled("(?)");
@@ -1462,26 +1526,38 @@ void CanConfigTreeManager::RenderObjectProperties(CanTreeObject &par_Object)
     if (CanObjectType::J1939 == par_Object.type)
     {
         ImGui::SeparatorText("J1939");
-        ImGui::Checkbox("Variable DLC", &par_Object.variableDlc);
-        if (par_Object.variableDlc)
+        if (ImGui::Button("J1939 additionals..."))
         {
-            ImGui::InputText("DLC variable", &par_Object.variableDlcName);
+            OpenJ1939AdditionalsDialog(m_selVariant, m_selObject);
         }
-        int dst{static_cast<int>(par_Object.destAddrType)};
-        const char *const DST_LABELS[]{"fixed", "variable"};
-        if (EnumCombo("Destination address", &dst, DST_LABELS, 2))
+        ImGui::SameLine();
+        ImGui::TextDisabled("(variable DLC / destination address)");
+    }
+    else if (CanObjectType::J1939MultiPG == par_Object.type)
+    {
+        ImGui::SeparatorText("J1939 multi-PG");
+        if (ImGui::Button("Configure multi-PG..."))
         {
-            par_Object.destAddrType = static_cast<CanObjectDestAddr>(dst);
+            OpenJ1939MultiPGDialog(m_selVariant, m_selObject);
         }
-        if (CanObjectDestAddr::Variable == par_Object.destAddrType)
-        {
-            ImGui::InputText("Dst addr variable", &par_Object.variableDestAddrName);
-            HexField("Dst addr init value", &par_Object.variableDestAddrInit);
-        }
-        else
-        {
-            HexField("Fixed dst addr", &par_Object.fixedDestAddr);
-        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(%zu C-PG(s) assigned)", par_Object.cPgIds.size());
+    }
+
+    ImGui::SeparatorText("Additional variables / equations");
+    if ((m_addTextVariant != m_selVariant) || (m_addTextObject != m_selObject))
+    {
+        SyncAdditionalTextBuffers(par_Object);
+    }
+    ImGui::TextDisabled("One entry per line; a trailing ';' separates entries (as in Qt).");
+    const ImVec2 addSize{ImVec2(0.0f, ImGui::GetTextLineHeight() * 3.0f)};
+    bool addChanged{false};
+    addChanged |= ImGui::InputTextMultiline("Additional variables", &m_addVarsText, addSize);
+    addChanged |= ImGui::InputTextMultiline("Equations before", &m_equBeforeText, addSize);
+    addChanged |= ImGui::InputTextMultiline("Equations behind", &m_equBehindText, addSize);
+    if (addChanged)
+    {
+        ParseAdditionalTextBuffers(par_Object);
     }
 
     ImGui::SeparatorText("Transmit");
@@ -1588,6 +1664,409 @@ void CanConfigTreeManager::RenderSignalProperties(CanTreeSignal &par_Signal)
         ImGui::InputInt("Mux start bit", &par_Signal.muxStartBit);
         ImGui::InputInt("Mux bit size", &par_Signal.muxBitSize);
         ImGui::InputInt("Mux value", &par_Signal.muxValue);
+    }
+}
+
+void CanConfigTreeManager::SyncAdditionalTextBuffers(const CanTreeObject &par_Object)
+{
+    const auto join = [](const std::vector<std::string> &par_Items) {
+        std::string text;
+        for (const auto &item : par_Items)
+        {
+            text += item;
+            text += ";\n";
+        }
+        return text;
+    };
+    m_addVarsText = join(par_Object.additionalVariables);
+    m_equBeforeText = join(par_Object.equationsBefore);
+    m_equBehindText = join(par_Object.equationsBehind);
+    m_addTextVariant = m_selVariant;
+    m_addTextObject = m_selObject;
+}
+
+void CanConfigTreeManager::ParseAdditionalTextBuffers(CanTreeObject &par_Object) const
+{
+    // Mirrors the Qt PlainTextToStringList: newlines -> spaces, split on ';', trim, drop empties.
+    const auto parse = [](const std::string &par_Text) {
+        std::string text{par_Text};
+        for (char &ch : text)
+        {
+            if (('\n' == ch) || ('\r' == ch))
+            {
+                ch = ' ';
+            }
+        }
+        std::vector<std::string> items;
+        std::size_t start{0};
+        while (start <= text.size())
+        {
+            const std::size_t semi{text.find(';', start)};
+            const std::size_t end{(std::string::npos == semi) ? text.size() : semi};
+            std::string item{text.substr(start, end - start)};
+            const std::size_t first{item.find_first_not_of(" \t")};
+            if (std::string::npos != first)
+            {
+                const std::size_t last{item.find_last_not_of(" \t")};
+                items.push_back(item.substr(first, last - first + 1));
+            }
+            if (std::string::npos == semi)
+            {
+                break;
+            }
+            start = semi + 1;
+        }
+        return items;
+    };
+    par_Object.additionalVariables = parse(m_addVarsText);
+    par_Object.equationsBefore = parse(m_equBeforeText);
+    par_Object.equationsBehind = parse(m_equBehindText);
+}
+
+void CanConfigTreeManager::OpenJ1939AdditionalsDialog(int par_Variant, int par_Object)
+{
+    if ((par_Variant < 0) || (par_Variant >= static_cast<int>(m_variants.size())))
+    {
+        return;
+    }
+    CanTreeVariant &variant = m_variants[static_cast<std::size_t>(par_Variant)];
+    if ((par_Object < 0) || (par_Object >= static_cast<int>(variant.objects.size())))
+    {
+        return;
+    }
+    m_j1939AddVariant = par_Variant;
+    m_j1939AddObject = par_Object;
+    m_j1939AddBackup = variant.objects[static_cast<std::size_t>(par_Object)];
+    m_j1939AddOpen = true;
+    m_j1939AddOpenRequested = true;
+}
+
+void CanConfigTreeManager::RenderJ1939AdditionalsDialog()
+{
+    if (m_j1939AddOpenRequested)
+    {
+        ImGui::OpenPopup("J1939 additional configuration");
+        m_j1939AddOpenRequested = false;
+    }
+    if ((m_j1939AddVariant < 0) || (m_j1939AddVariant >= static_cast<int>(m_variants.size())))
+    {
+        return;
+    }
+    CanTreeVariant &variant = m_variants[static_cast<std::size_t>(m_j1939AddVariant)];
+    if ((m_j1939AddObject < 0) || (m_j1939AddObject >= static_cast<int>(variant.objects.size())))
+    {
+        return;
+    }
+    CanTreeObject &object = variant.objects[static_cast<std::size_t>(m_j1939AddObject)];
+
+    ImGui::SetNextWindowSize(ImVec2(560.0f, 0.0f), ImGuiCond_FirstUseEver);
+    bool open{m_j1939AddOpen};
+    if (ImGui::BeginPopupModal("J1939 additional configuration", &open,
+                               ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Checkbox("Variable DLC", &object.variableDlc);
+        ImGui::SameLine();
+        if (object.variableDlc)
+        {
+            ImGui::InputText("##dlcvar", &object.variableDlcName);
+        }
+        else
+        {
+            ImGui::BeginDisabled();
+            std::string disabled{};
+            ImGui::InputText("##dlcvar", &disabled, ImGuiInputTextFlags_ReadOnly);
+            ImGui::EndDisabled();
+        }
+        ImGui::SameLine();
+        ImGui::Text("Init value %d", object.size);
+
+        ImGui::SeparatorText("Destination Address");
+        int dst{static_cast<int>(object.destAddrType)};
+        if (ImGui::RadioButton("Fixed", CanObjectDestAddr::Fixed == object.destAddrType))
+        {
+            dst = static_cast<int>(CanObjectDestAddr::Fixed);
+        }
+        object.destAddrType = static_cast<CanObjectDestAddr>(dst);
+        ImGui::SameLine();
+        if (CanObjectDestAddr::Fixed == object.destAddrType)
+        {
+            HexField("##fixeddst", &object.fixedDestAddr);
+        }
+        else
+        {
+            ImGui::BeginDisabled();
+            uint32_t shadow{object.fixedDestAddr};
+            HexField("##fixeddst", &shadow);
+            ImGui::EndDisabled();
+        }
+
+        if (ImGui::RadioButton("Variable", CanObjectDestAddr::Variable == object.destAddrType))
+        {
+            object.destAddrType = CanObjectDestAddr::Variable;
+        }
+        ImGui::SameLine();
+        if (CanObjectDestAddr::Variable == object.destAddrType)
+        {
+            ImGui::InputText("##vardst", &object.variableDestAddrName);
+            ImGui::SameLine();
+            ImGui::Text("Init value");
+            ImGui::SameLine();
+            HexField("##vardstinit", &object.variableDestAddrInit);
+        }
+        else
+        {
+            ImGui::BeginDisabled();
+            std::string shadowName{object.variableDestAddrName};
+            ImGui::InputText("##vardst", &shadowName, ImGuiInputTextFlags_ReadOnly);
+            ImGui::SameLine();
+            ImGui::Text("Init value");
+            ImGui::SameLine();
+            uint32_t shadowInit{object.variableDestAddrInit};
+            HexField("##vardstinit", &shadowInit);
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Separator();
+        if (ImGui::Button("OK", ImVec2(120.0f, 0.0f)))
+        {
+            // On OK the Qt dialog clears the field of the non-selected destination-address kind.
+            if (CanObjectDestAddr::Fixed == object.destAddrType)
+            {
+                object.variableDestAddrName.clear();
+                object.variableDestAddrInit = 0;
+            }
+            else
+            {
+                object.fixedDestAddr = 0;
+            }
+            m_j1939AddOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+        {
+            object = m_j1939AddBackup; // Discard edits.
+            m_j1939AddOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!open)
+    {
+        object = m_j1939AddBackup; // Window close button == Cancel.
+        m_j1939AddOpen = false;
+    }
+}
+
+void CanConfigTreeManager::OpenJ1939MultiPGDialog(int par_Variant, int par_Object)
+{
+    if ((par_Variant < 0) || (par_Variant >= static_cast<int>(m_variants.size())))
+    {
+        return;
+    }
+    CanTreeVariant &variant = m_variants[static_cast<std::size_t>(par_Variant)];
+    if ((par_Object < 0) || (par_Object >= static_cast<int>(variant.objects.size())))
+    {
+        return;
+    }
+    m_multiPgVariant = par_Variant;
+    m_multiPgObject = par_Object;
+    m_multiPgChecked = variant.objects[static_cast<std::size_t>(par_Object)].cPgIds;
+    m_multiPgOpen = true;
+    m_multiPgOpenRequested = true;
+}
+
+void CanConfigTreeManager::RenderJ1939MultiPGDialog()
+{
+    if (m_multiPgOpenRequested)
+    {
+        ImGui::OpenPopup("Configure J1939 multi PG object");
+        m_multiPgOpenRequested = false;
+    }
+    if ((m_multiPgVariant < 0) || (m_multiPgVariant >= static_cast<int>(m_variants.size())))
+    {
+        return;
+    }
+    CanTreeVariant &variant = m_variants[static_cast<std::size_t>(m_multiPgVariant)];
+    if ((m_multiPgObject < 0) || (m_multiPgObject >= static_cast<int>(variant.objects.size())))
+    {
+        return;
+    }
+    CanTreeObject &object = variant.objects[static_cast<std::size_t>(m_multiPgObject)];
+    const CanObjectDirection dir{object.direction};
+
+    ImGui::SetNextWindowSize(ImVec2(460.0f, 440.0f), ImGuiCond_FirstUseEver);
+    bool open{m_multiPgOpen};
+    if (ImGui::BeginPopupModal("Configure J1939 multi PG object", &open,
+                               ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::TextDisabled("Check the C-PG objects (same direction) that belong to this multi-PG.");
+        const float footerHeight{ImGui::GetFrameHeightWithSpacing() +
+                                 ImGui::GetStyle().ItemSpacing.y};
+        if (ImGui::BeginChild("##multipg_list", ImVec2(0.0f, -footerHeight)))
+        {
+            for (std::size_t o = 0; o < variant.objects.size(); ++o)
+            {
+                const CanTreeObject &candidate = variant.objects[o];
+                if (CanObjectType::J1939CPG != candidate.type)
+                {
+                    continue;
+                }
+                if (candidate.direction != dir)
+                {
+                    continue;
+                }
+                const int id{static_cast<int>(candidate.identifier)};
+                const auto it{std::find(m_multiPgChecked.begin(), m_multiPgChecked.end(), id)};
+                bool checked{m_multiPgChecked.end() != it};
+                char label[320];
+                std::snprintf(label, sizeof(label), "[0x%X] %s", candidate.identifier,
+                              candidate.name.c_str());
+                ImGui::PushID(static_cast<int>(o));
+                if (ImGui::Checkbox(label, &checked))
+                {
+                    if (checked)
+                    {
+                        if (m_multiPgChecked.end() == it)
+                        {
+                            m_multiPgChecked.push_back(id);
+                        }
+                    }
+                    else if (m_multiPgChecked.end() != it)
+                    {
+                        m_multiPgChecked.erase(it);
+                    }
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndChild();
+
+        ImGui::Separator();
+        if (ImGui::Button("OK", ImVec2(120.0f, 0.0f)))
+        {
+            object.cPgIds = m_multiPgChecked;
+            m_multiPgOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+        {
+            m_multiPgOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!open)
+    {
+        m_multiPgOpen = false;
+    }
+}
+
+void CanConfigTreeManager::OpenSearchDialog()
+{
+    m_searchActive = false;
+    m_searchVariant = -1;
+    m_searchObject = -1;
+    m_searchSignal = -1;
+    m_searchOpen = true;
+    m_searchOpenRequested = true;
+}
+
+bool CanConfigTreeManager::SearchNextSignal()
+{
+    if (m_searchFilter.empty())
+    {
+        return false;
+    }
+    std::regex regex;
+    try
+    {
+        regex = std::regex{m_searchFilter, std::regex::ECMAScript};
+    }
+    catch (const std::regex_error &)
+    {
+        return false; // Invalid pattern: behave like "no match".
+    }
+
+    // Advance linearly (variant, object, signal) after the last matched cursor position.
+    for (std::size_t v = 0; v < m_variants.size(); ++v)
+    {
+        const CanTreeVariant &variant = m_variants[v];
+        for (std::size_t o = 0; o < variant.objects.size(); ++o)
+        {
+            const CanTreeObject &object = variant.objects[o];
+            for (std::size_t s = 0; s < object.signals.size(); ++s)
+            {
+                const bool afterCursor{
+                    (static_cast<int>(v) > m_searchVariant) ||
+                    ((static_cast<int>(v) == m_searchVariant) &&
+                     (static_cast<int>(o) > m_searchObject)) ||
+                    ((static_cast<int>(v) == m_searchVariant) &&
+                     (static_cast<int>(o) == m_searchObject) &&
+                     (static_cast<int>(s) > m_searchSignal))};
+                if (!afterCursor)
+                {
+                    continue;
+                }
+                if (std::regex_search(object.signals[s].name, regex))
+                {
+                    m_searchVariant = static_cast<int>(v);
+                    m_searchObject = static_cast<int>(o);
+                    m_searchSignal = static_cast<int>(s);
+                    SelectSignal(static_cast<int>(v), static_cast<int>(o), static_cast<int>(s));
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void CanConfigTreeManager::RenderSearchDialog()
+{
+    if (m_searchOpenRequested)
+    {
+        ImGui::OpenPopup("Search signal");
+        m_searchOpenRequested = false;
+    }
+    ImGui::SetNextWindowSize(ImVec2(560.0f, 0.0f), ImGuiCond_FirstUseEver);
+    bool open{m_searchOpen};
+    if (ImGui::BeginPopupModal("Search signal", &open,
+                               ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Filter (regular expression):");
+        ImGui::SetNextItemWidth(400.0f);
+        const bool entered{ImGui::InputText("##searchfilter", &m_searchFilter,
+                                            ImGuiInputTextFlags_EnterReturnsTrue)};
+        ImGui::SameLine();
+        const char *buttonLabel{m_searchActive ? "Next" : "Search"};
+        if (ImGui::Button(buttonLabel) || entered)
+        {
+            if (SearchNextSignal())
+            {
+                m_searchActive = true;
+            }
+            else
+            {
+                // No further match: reset the cursor so the next click restarts at the top.
+                m_searchActive = false;
+                m_searchVariant = -1;
+                m_searchObject = -1;
+                m_searchSignal = -1;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Close"))
+        {
+            m_searchOpen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!open)
+    {
+        m_searchOpen = false;
     }
 }
 

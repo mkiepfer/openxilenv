@@ -18,6 +18,7 @@
 #include "Framework/BlackboardDialogs.h"
 #include "Framework/BusConfigDialogs.h"
 #include "Framework/CanConfigTree.h"
+#include "Framework/CanErrorDialog.h"
 #include "Framework/ControlDialogs.h"
 #include "Framework/ConversionDialogs.h"
 #include "Framework/DebugDialogs.h"
@@ -280,6 +281,11 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
                 busConfig.OpenDbcImport();
             }
             ImGui::Separator();
+            if (ImGui::MenuItem("Insert CAN error..."))
+            {
+                XilEnvImGui::CanErrorDialogManager::GetInstance().OpenDialog();
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("CCP config..."))
             {
                 busConfig.OpenCcpConfig();
@@ -357,6 +363,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven CAN variant/object/signal tree editor.
     XilEnvImGui::CanConfigTreeManager::GetInstance().Render();
+
+    // Menu-driven runtime CAN-error injection dialog.
+    XilEnvImGui::CanErrorDialogManager::GetInstance().Render();
 
     // Menu-driven engine-control dialogs (process/scheduler/barrier config, hotkeys, about).
     XilEnvImGui::ControlDialogManager::GetInstance().Render();

@@ -220,6 +220,16 @@ struct CanTreeChannel
 };
 
 /**
+ * @brief Reads every CAN variant/object/signal from the main ini into a read-only snapshot.
+ * @details Shared by the tree editor and the runtime "Insert CAN error" dialog so both use the
+ *          exact same section/entry keys and the channel<->variant mapping (per-variant
+ *          @c connectedChannels is filled from @c CAN/Global/can_controllerN_variante).
+ * @param[out] out_NumberOfChannels Receives the configured CAN controller count (>= 1).
+ * @return The list of variants (index == variant number).
+ */
+std::vector<CanTreeVariant> SnapshotCanVariantsFromIni(int &out_NumberOfChannels);
+
+/**
  * @enum class CanTreeSelectionKind
  * @brief Which tree level the current selection refers to.
  */
@@ -304,6 +314,18 @@ private:
     void RenderChannelMapping();
     void RenderFilePicker();
 
+    void OpenJ1939AdditionalsDialog(int par_Variant, int par_Object);
+    void RenderJ1939AdditionalsDialog();
+    void OpenJ1939MultiPGDialog(int par_Variant, int par_Object);
+    void RenderJ1939MultiPGDialog();
+
+    void OpenSearchDialog();
+    void RenderSearchDialog();
+    bool SearchNextSignal();
+
+    void SyncAdditionalTextBuffers(const CanTreeObject &par_Object);
+    void ParseAdditionalTextBuffers(CanTreeObject &par_Object) const;
+
     void OpenFilePicker(CanTreeFileAction par_Action);
     void ExecuteFileAction(const std::string &par_Path);
     void ImportVariantFromFile(const std::string &par_Path);
@@ -347,6 +369,36 @@ private:
     CanTreeVariant m_clipboardVariant{}; /*!< Copied variant. */
     CanTreeObject m_clipboardObject{};   /*!< Copied object. */
     CanTreeSignal m_clipboardSignal{};   /*!< Copied signal. */
+
+    // J1939 additionals sub-dialog (variable DLC + destination address).
+    bool m_j1939AddOpen{false};          /*!< Additionals modal visible. */
+    bool m_j1939AddOpenRequested{false}; /*!< Additionals OpenPopup pending. */
+    int m_j1939AddVariant{-1};           /*!< Target variant index. */
+    int m_j1939AddObject{-1};            /*!< Target object index. */
+    CanTreeObject m_j1939AddBackup{};    /*!< Object snapshot restored on Cancel. */
+
+    // J1939 multi-PG sub-dialog (C_PGs list of checked C-PG object ids).
+    bool m_multiPgOpen{false};          /*!< Multi-PG modal visible. */
+    bool m_multiPgOpenRequested{false}; /*!< Multi-PG OpenPopup pending. */
+    int m_multiPgVariant{-1};           /*!< Target variant index. */
+    int m_multiPgObject{-1};            /*!< Target object index. */
+    std::vector<int> m_multiPgChecked{}; /*!< Working set of checked C-PG object ids. */
+
+    // Search-signal sub-dialog.
+    bool m_searchOpen{false};          /*!< Search modal visible. */
+    bool m_searchOpenRequested{false}; /*!< Search OpenPopup pending. */
+    std::string m_searchFilter{};      /*!< Current regex filter text. */
+    bool m_searchActive{false};        /*!< true once a match was found (button reads "Next"). */
+    int m_searchVariant{-1};           /*!< Search cursor variant index. */
+    int m_searchObject{-1};            /*!< Search cursor object index. */
+    int m_searchSignal{-1};            /*!< Search cursor signal index (last match). */
+
+    // Additional-variable / equation text buffers (semicolon-separated, one item per line).
+    int m_addTextVariant{-1};      /*!< Variant the buffers are synced to. */
+    int m_addTextObject{-1};       /*!< Object the buffers are synced to. */
+    std::string m_addVarsText{};   /*!< "additional_variable_%i" editor buffer. */
+    std::string m_equBeforeText{}; /*!< "equ_before_%i" editor buffer. */
+    std::string m_equBehindText{}; /*!< "equ_behind_%i" editor buffer. */
 
     // Inline .can file picker.
     bool m_filePickerOpen{false};          /*!< File picker visible. */
