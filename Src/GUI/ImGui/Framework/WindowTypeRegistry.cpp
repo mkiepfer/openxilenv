@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 
+#include "Widgets/A2LCalMap/A2LCalMapWindow.h"
 #include "Widgets/A2LCalSingle/A2LCalSingleWindow.h"
 #include "Widgets/Bargraph/BargraphWindow.h"
 #include "Widgets/CalibrationTree/CalibrationTreeWindow.h"
@@ -64,6 +65,7 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<OscilloscopeWindowType>());
     registry.Register(std::make_unique<CanMessageWindowType>());
     registry.Register(std::make_unique<A2LCalSingleWindowType>());
+    registry.Register(std::make_unique<A2LCalMapWindowType>());
     registry.Register(std::make_unique<CalibrationTreeWindowType>());
     // Further built-in types follow in later migration steps.
 }

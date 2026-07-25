@@ -155,6 +155,9 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/Oscilloscope/OscilloscopeWindow.cpp
     Widgets/CanMessage/CanMessageWindow.cpp
     Widgets/A2LCalSingle/A2LCalSingleWindow.cpp
+    Widgets/A2LCalMap/A2LCalMapData.cpp
+    Widgets/A2LCalMap/A2LCalMap3DRenderer.cpp
+    Widgets/A2LCalMap/A2LCalMapWindow.cpp
     Widgets/CalibrationTree/CalibrationTreeWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)
