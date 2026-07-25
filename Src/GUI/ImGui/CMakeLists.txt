@@ -153,6 +153,7 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/Knob/KnobWindow.cpp
     Widgets/Tacho/TachoWindow.cpp
     Widgets/Oscilloscope/OscilloscopeWindow.cpp
-    Widgets/CanMessage/CanMessageWindow.cpp)
+    Widgets/CanMessage/CanMessageWindow.cpp
+    Widgets/A2LCalSingle/A2LCalSingleWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)

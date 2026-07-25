@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 
+#include "Widgets/A2LCalSingle/A2LCalSingleWindow.h"
 #include "Widgets/Bargraph/BargraphWindow.h"
 #include "Widgets/CanMessage/CanMessageWindow.h"
 #include "Widgets/Enum/EnumWindow.h"
@@ -61,6 +62,7 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<TachoWindowType>());
     registry.Register(std::make_unique<OscilloscopeWindowType>());
     registry.Register(std::make_unique<CanMessageWindowType>());
+    registry.Register(std::make_unique<A2LCalSingleWindowType>());
     // Further built-in types follow in later migration steps.
 }
 
