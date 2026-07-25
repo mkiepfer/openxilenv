@@ -16,6 +16,7 @@
 
 #include "Framework/A2LCalBridge.h"
 #include "Framework/DialogManager.h"
+#include "Framework/SettingsDialogs.h"
 #include "Framework/UpdateScheduler.h"
 #include "Framework/WindowManager.h"
 #include "Framework/WindowTypeRegistry.h"
@@ -62,8 +63,39 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     if (ImGui::BeginMainMenuBar())
     {
+        XilEnvImGui::SettingsDialogManager &settings = XilEnvImGui::SettingsDialogManager::GetInstance();
+
+        // Small helper: a menu entry whose dedicated dialog is a later M7 step. It
+        // opens a modal explaining that the feature is not yet implemented so the
+        // menu structure reaches parity without pulling in the CAN/XCP/CCP dialogs.
+        const auto placeholder{[&settings](const char *par_Title) {
+            settings.ShowInfo(par_Title, "This dialog is not yet implemented in the ImGui front-end.");
+        }};
+
         if (ImGui::BeginMenu("File"))
         {
+            if (ImGui::MenuItem("Save configuration", "Ctrl+S"))
+            {
+                (void)XilEnvImGui::SaveConfiguration();
+            }
+            if (ImGui::MenuItem("Save configuration as..."))
+            {
+                settings.OpenSaveConfigurationAs();
+            }
+            if (ImGui::MenuItem("Load configuration..."))
+            {
+                settings.ShowInfo("Load configuration",
+                                  "Loading a different configuration at runtime requires re-initialising "
+                                  "the scheduler and processes; that plumbing is not reachable from the "
+                                  "GUI seam yet. Start XilEnvImGui with the desired ini on the command "
+                                  "line instead.");
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Export A2L file..."))
+            {
+                placeholder("Export A2L file");
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Exit"))
             {
                 g_running.store(false);
@@ -79,13 +111,94 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Settings"))
+        {
+            if (ImGui::MenuItem("Basic settings..."))
+            {
+                settings.OpenBasicSettings();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Function hotkeys..."))
+            {
+                placeholder("Function hotkeys");
+            }
+            if (ImGui::MenuItem("Import hotkeys..."))
+            {
+                placeholder("Import hotkeys");
+            }
+            if (ImGui::MenuItem("Export hotkeys..."))
+            {
+                placeholder("Export hotkeys");
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Calibration"))
+        {
+            if (ImGui::MenuItem("Load SVL file..."))
+            {
+                placeholder("Load SVL file");
+            }
+            if (ImGui::MenuItem("Save process to SVL/SAL file..."))
+            {
+                placeholder("Save process to SVL/SAL file");
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Configure XCP over ethernet links..."))
+            {
+                placeholder("Configure XCP over ethernet links");
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("CAN"))
+        {
+            if (ImGui::MenuItem("Config..."))
+            {
+                placeholder("CAN configuration");
+            }
+            if (ImGui::MenuItem("Import DBC..."))
+            {
+                placeholder("CAN DBC import");
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("CCP config..."))
+            {
+                placeholder("CCP configuration");
+            }
+            if (ImGui::MenuItem("XCP config..."))
+            {
+                placeholder("XCP configuration");
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Help"))
+        {
+            if (ImGui::MenuItem("About..."))
+            {
+                placeholder("About");
+            }
+            if (ImGui::MenuItem("Homepage"))
+            {
+                placeholder("Homepage");
+            }
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
+    }
+
+    // Ctrl+S saves the configuration like the Qt toolbar/File action.
+    const ImGuiIO &menuIo = ImGui::GetIO();
+    if (menuIo.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
+    {
+        (void)XilEnvImGui::SaveConfiguration();
     }
 
     XilEnvImGui::WindowManager::GetInstance().Render(par_Context);
 
     // Seam-driven dialogs (progress bars, script user dialog, error/message log).
     XilEnvImGui::DialogManager::GetInstance().Render();
+
+    // Menu-driven settings dialogs (basic settings form, save-as picker, info popups).
+    XilEnvImGui::SettingsDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
