@@ -1,5 +1,6 @@
 #include "Widgets/A2LCalSingle/A2LCalSingleWindow.h"
 
+#include <cctype>
 #include <cfloat>
 #include <cstdint>
 #include <cstdio>
@@ -13,6 +14,7 @@
 
 #include "Framework/A2LCalBridge.h"
 #include "Framework/BlackboardDragDrop.h"
+#include "Framework/WindowManagerBridge.h"
 
 #include "A2LCalWidgetSync.h"
 
@@ -37,6 +39,47 @@ namespace
 constexpr uint64_t FETCH_CHANNEL_TIMEOUT_NS{100000000u};
 constexpr int LABEL_NAME_COLUMN{0};
 constexpr int VALUE_COLUMN{1};
+
+// Qt::Alignment flag bits (mirrors Qt's A2LCalSingleWidget::readFromIni defaults).
+constexpr int QT_ALIGN_LEFT{0x0001};
+constexpr int QT_ALIGN_RIGHT{0x0002};
+constexpr int QT_ALIGN_HCENTER{0x0004};
+constexpr int QT_ALIGN_VCENTER{0x0080};
+constexpr int DEFAULT_ALIGN_NAME{QT_ALIGN_VCENTER | QT_ALIGN_LEFT};
+constexpr int DEFAULT_ALIGN_VALUE{QT_ALIGN_VCENTER | QT_ALIGN_RIGHT};
+constexpr int DEFAULT_ALIGN_UNIT{QT_ALIGN_VCENTER | QT_ALIGN_HCENTER};
+constexpr int DEFAULT_ALIGN_DISPLAYTYPE{QT_ALIGN_VCENTER | QT_ALIGN_LEFT};
+
+/**
+ * @brief Case-insensitive substring test used by the settings-popup characteristic filter.
+ * @param[in] par_Haystack Candidate characteristic name. Must not be nullptr.
+ * @param[in] par_Needle Filter text; an empty needle matches everything. Must not be nullptr.
+ * @return true when par_Needle occurs in par_Haystack ignoring ASCII case.
+ */
+bool ContainsCaseInsensitive(const char *par_Haystack, const char *par_Needle)
+{
+    if ('\0' == par_Needle[0])
+    {
+        return true;
+    }
+    for (const char *pStart{par_Haystack}; '\0' != *pStart; ++pStart)
+    {
+        const char *pHay{pStart};
+        const char *pNeedle{par_Needle};
+        while (('\0' != *pNeedle) &&
+               (std::tolower(static_cast<unsigned char>(*pHay)) ==
+                std::tolower(static_cast<unsigned char>(*pNeedle))))
+        {
+            ++pHay;
+            ++pNeedle;
+        }
+        if ('\0' == *pNeedle)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * @brief Formats a double with the round-trip precision used by the Qt widget (%.*g, 15..18).
@@ -366,36 +409,49 @@ void A2LCalSingleWindow::WriteValueToLink(Element &par_Element, const char *par_
 
     if (3 == par_Element.displayType)
     {
-        // Physical input: convert phys -> raw exactly like the Qt PhysValueInput editor.
-        const double physValue{std::strtod(par_Text, nullptr)};
-        double rawValue{physValue};
-        if (0 < par_Element.info.m_ConvType)
+        double rawValue{0.0};
+        if (BB_CONV_TEXTREP == par_Element.info.m_ConvType)
         {
-            double realPhys{0.0};
-            char *pErrString{nullptr};
-            if (0 != Conv_PhysToRawFromString(par_Element.info.m_Conversion,
-                                              static_cast<enum BB_CONV_TYPES>(par_Element.info.m_ConvType),
-                                              par_Element.name.c_str(), physValue, &rawValue, &realPhys,
-                                              &pErrString))
+            // A textreplace "physical" input is an enum TEXT (e.g. "ON"); resolve it to its raw
+            // value via the reverse lookup instead of strtod (which would silently yield 0).
+            char textBuffer[256];
+            std::snprintf(textBuffer, sizeof(textBuffer), "%s", par_Text);
+            int64_t fromRaw{0};
+            int64_t toRaw{0};
+            if (0 != convert_textreplace2value(par_Element.info.m_Conversion, textBuffer, &fromRaw, &toRaw))
             {
-                FreeErrStringBuffer(&pErrString);
-                return; // Do not write an unconvertible value.
+                return; // Unknown enum text: do not write a bogus 0.
+            }
+            rawValue = static_cast<double>(fromRaw);
+        }
+        else
+        {
+            // Physical input: convert phys -> raw exactly like the Qt PhysValueInput editor.
+            const double physValue{std::strtod(par_Text, nullptr)};
+            rawValue = physValue;
+            if (0 < par_Element.info.m_ConvType)
+            {
+                double realPhys{0.0};
+                char *pErrString{nullptr};
+                if (0 != Conv_PhysToRawFromString(
+                             par_Element.info.m_Conversion,
+                             static_cast<enum BB_CONV_TYPES>(par_Element.info.m_ConvType),
+                             par_Element.name.c_str(), physValue, &rawValue, &realPhys, &pErrString))
+                {
+                    FreeErrStringBuffer(&pErrString);
+                    return; // Do not write an unconvertible value.
+                }
             }
         }
-        switch (pValue->Type)
+        // Round-to-nearest + range-check to the exact target type (mirrors the Qt
+        // sc_convert_from_FloatOrInt64_to_BB_VARI path): e.g. raw 2.9999 -> 3 and out-of-range
+        // doubles are clamped to the target's min/max instead of invoking a truncating cast.
+        const uint32_t savedFlags{pValue->Flags};
+        ConvertDoubleToRawValue(pValue->TargetType, rawValue, pValue);
+        pValue->Flags = savedFlags;
+        if (A2L_ELEM_TYPE_ERROR == pValue->Type)
         {
-        case A2L_ELEM_TYPE_INT:
-            pValue->Value.Int = static_cast<int64_t>(rawValue);
-            break;
-        case A2L_ELEM_TYPE_UINT:
-            pValue->Value.Uint = static_cast<uint64_t>(rawValue);
-            break;
-        case A2L_ELEM_TYPE_DOUBLE:
-        case A2L_ELEM_TYPE_PHYS_DOUBLE:
-            pValue->Value.Double = rawValue;
-            break;
-        default:
-            return;
+            return; // Unsupported target type.
         }
     }
     else
@@ -707,6 +763,24 @@ void A2LCalSingleWindow::OnGetDataFromLinkAck(void *par_IndexData, int par_Fetch
 // Render / update
 // -------------------------------------------------------------------------
 
+void A2LCalSingleWindow::RefreshCharacteristicBrowser()
+{
+    m_browserCharacteristics.clear();
+    m_browserSelected.clear();
+    if (0 >= m_linkNo)
+    {
+        return;
+    }
+    char name[1024];
+    int index{-1};
+    while (0 <= (index = A2LGetNextSymbolFromLink(m_linkNo, index, A2L_LABEL_TYPE_SINGLE_VALUE_CALIBRATION,
+                                                  "*", name, sizeof(name))))
+    {
+        m_browserCharacteristics.emplace_back(name);
+    }
+    m_browserSelected.assign(m_browserCharacteristics.size(), 0);
+}
+
 void A2LCalSingleWindow::OnUpdateTick(const WindowContext &par_Context)
 {
     (void)par_Context;
@@ -860,6 +934,33 @@ void A2LCalSingleWindow::RenderContent(const WindowContext &par_Context)
 
 void A2LCalSingleWindow::RenderSettingsPopup()
 {
+    // Seed the rename field and (re)build the characteristic browser when the popup first appears.
+    if (ImGui::IsWindowAppearing())
+    {
+        std::snprintf(m_renameBuffer, sizeof(m_renameBuffer), "%s", GetName().c_str());
+        RefreshCharacteristicBrowser();
+    }
+
+    // --- Window rename (mirrors A2LCalSingleConfigDlg's WindowTitleLineEdit) ------------------
+    ImGui::TextUnformatted("Window name:");
+    ImGui::SetNextItemWidth(200.0f);
+    const bool renameCommitted{ImGui::InputText("##rename", m_renameBuffer, sizeof(m_renameBuffer),
+                                                ImGuiInputTextFlags_EnterReturnsTrue)};
+    ImGui::SameLine();
+    if (ImGui::Button("Rename") || renameCommitted)
+    {
+        const std::string newName{m_renameBuffer};
+        if (!newName.empty() && (0 != newName.compare(GetName())))
+        {
+            // Route through the WindowManager so its name->instance map is re-keyed too (else
+            // OpenWindowByName / dedup would lose the window). Ignores empty/duplicate names.
+            (void)WmRenameWindow(GetName().c_str(), newName.c_str());
+        }
+    }
+
+    ImGui::Separator();
+
+    // --- Process selection (mirrors A2LSelectWidget's process list) ---------------------------
     ImGui::TextUnformatted("Process:");
     ImGui::SetNextItemWidth(200.0f);
     ImGui::InputText("##process", m_processBuffer, sizeof(m_processBuffer));
@@ -873,7 +974,29 @@ void A2LCalSingleWindow::RenderSettingsPopup()
             ClearElements();
             CloseLink();
             SetProcessName(newProcess);
+            RefreshCharacteristicBrowser();
         }
+    }
+    // Pick from the processes that currently expose an A2L link (same 2|0x100 iterator as Qt).
+    if (ImGui::BeginCombo("##processpick", "Select process..."))
+    {
+        READ_NEXT_PROCESS_NAME *pProcesses{init_read_next_process_name(2 | 0x100)};
+        if (nullptr != pProcesses)
+        {
+            char *pProcessName{nullptr};
+            while (nullptr != (pProcessName = read_next_process_name(pProcesses)))
+            {
+                if (0 < A2LGetLinkToExternProcess(pProcessName))
+                {
+                    if (ImGui::Selectable(pProcessName))
+                    {
+                        std::snprintf(m_processBuffer, sizeof(m_processBuffer), "%s", pProcessName);
+                    }
+                }
+            }
+            close_read_next_process_name(pProcesses);
+        }
+        ImGui::EndCombo();
     }
 
     ImGui::Separator();
@@ -887,7 +1010,52 @@ void A2LCalSingleWindow::RenderSettingsPopup()
     ImGui::Checkbox("Show display-type column", &m_showDisplayTypeColumn);
 
     ImGui::Separator();
-    ImGui::TextUnformatted("Add characteristic:");
+
+    // --- A2L characteristic browser (multi-select) -------------------------------------------
+    ImGui::TextUnformatted("A2L characteristics:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Refresh"))
+    {
+        RefreshCharacteristicBrowser();
+    }
+    ImGui::SetNextItemWidth(300.0f);
+    ImGui::InputTextWithHint("##browserfilter", "filter (substring)", m_browserFilter,
+                             sizeof(m_browserFilter));
+    ImGui::BeginChild("##browserlist", ImVec2(300.0f, 150.0f), true);
+    if (m_browserCharacteristics.empty())
+    {
+        ImGui::TextDisabled("(no linked process / no characteristics)");
+    }
+    for (size_t i{0}; i < m_browserCharacteristics.size(); ++i)
+    {
+        const std::string &candidate{m_browserCharacteristics[i]};
+        if (!ContainsCaseInsensitive(candidate.c_str(), m_browserFilter))
+        {
+            continue;
+        }
+        const bool selected{0 != m_browserSelected[i]};
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::Selectable(candidate.c_str(), selected))
+        {
+            m_browserSelected[i] = selected ? 0 : 1; // toggle (multi-select)
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    if (ImGui::Button("Add selected"))
+    {
+        for (size_t i{0}; i < m_browserCharacteristics.size(); ++i)
+        {
+            if (0 != m_browserSelected[i])
+            {
+                AddCharacteristic(m_browserCharacteristics[i], -1, -1);
+                m_browserSelected[i] = 0;
+            }
+        }
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Add characteristic by name:");
     ImGui::SetNextItemWidth(200.0f);
     ImGui::InputText("##addlabel", m_addCharacteristicBuffer, sizeof(m_addCharacteristicBuffer));
     ImGui::SameLine();
@@ -1024,12 +1192,14 @@ void A2LCalSingleWindow::ReadConfig(int par_FileDescriptor, const char *par_Sect
         AddCharacteristic(name, -1, displayType);
     }
 
-    m_columnAlignmentName = IniFileDataBaseReadInt(par_Section, "ColumnAlignmentName", 0, par_FileDescriptor);
+    m_columnAlignmentName =
+        IniFileDataBaseReadInt(par_Section, "ColumnAlignmentName", DEFAULT_ALIGN_NAME, par_FileDescriptor);
     m_columnAlignmentValue =
-        IniFileDataBaseReadInt(par_Section, "ColumnAlignmentValue", 0, par_FileDescriptor);
-    m_columnAlignmentUnit = IniFileDataBaseReadInt(par_Section, "ColumnAlignmentUnit", 0, par_FileDescriptor);
-    m_columnAlignmentDisplayType =
-        IniFileDataBaseReadInt(par_Section, "ColumnAlignmentDisplayType", 0, par_FileDescriptor);
+        IniFileDataBaseReadInt(par_Section, "ColumnAlignmentValue", DEFAULT_ALIGN_VALUE, par_FileDescriptor);
+    m_columnAlignmentUnit =
+        IniFileDataBaseReadInt(par_Section, "ColumnAlignmentUnit", DEFAULT_ALIGN_UNIT, par_FileDescriptor);
+    m_columnAlignmentDisplayType = IniFileDataBaseReadInt(par_Section, "ColumnAlignmentDisplayType",
+                                                          DEFAULT_ALIGN_DISPLAYTYPE, par_FileDescriptor);
 
     m_showUnitColumn =
         (0 != IniFileDataBaseReadYesNo(par_Section, "ShowUnitColumn", m_showUnitColumn ? 1 : 0,

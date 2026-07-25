@@ -136,6 +136,19 @@ public:
      */
     int RenameSheet(const char *par_OldName, const char *par_NewName);
 
+    /**
+     * @brief Renames a window and re-keys the name->instance lookup.
+     * @details Updates the instance's name (title, config section and "###" identity) AND the
+     *          name->instance map so OpenWindowByName / dedup keep working after a rename.
+     * @param[in] par_OldName Current window name. Must not be nullptr.
+     * @param[in] par_NewName Desired new name. Must be non-empty and not already in use.
+     * @return 1 on success, 0 if par_OldName is unknown or par_NewName is empty / already taken.
+     * @note The ImGui dock slot is tied to the name ("###"), so a renamed window loses its dock
+     *       position until re-docked — decoupling a stable dock id from the display name is a
+     *       separate follow-up.
+     */
+    int RenameWindow(const char *par_OldName, const char *par_NewName);
+
 private:
     /**
      * @struct SheetWindow

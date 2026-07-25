@@ -65,6 +65,14 @@ int WmDeleteSheet(const char *par_Name);
 int WmRenameSheet(const char *par_OldName, const char *par_NewName);
 
 /**
+ * @brief Renames a window and re-keys the name->instance lookup.
+ * @param[in] par_OldName Existing window name. Must not be nullptr.
+ * @param[in] par_NewName New window name. Must not be nullptr.
+ * @return 1 if renamed, 0 otherwise (unknown source or new name empty/taken).
+ */
+int WmRenameWindow(const char *par_OldName, const char *par_NewName);
+
+/**
  * @brief Stops acquisition of the oscilloscope window identified by a widget pointer.
  * @details Drives StopOscilloscopeFromOtherThread from the drained command queue.
  *          The identity pointer is the value the oscilloscope window registered with

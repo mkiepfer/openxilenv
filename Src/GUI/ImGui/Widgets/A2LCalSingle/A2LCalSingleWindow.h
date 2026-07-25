@@ -135,6 +135,15 @@ private:
     void UpdateOneValueReq(int par_Row, bool par_UpdateAlways);
     void WriteValueToLink(Element &par_Element, const char *par_Text);
 
+    /**
+     * @brief Re-enumerates the linked process' single-value calibration characteristics.
+     * @details Fills the settings-popup browser cache via A2LGetNextSymbolFromLink with the
+     *          A2L_LABEL_TYPE_SINGLE_VALUE_CALIBRATION type mask (same enumeration the Qt
+     *          A2LSelectWidget model uses). Resets the per-entry selection flags.
+     * @note No-op when the window is not linked to a process (m_linkNo <= 0).
+     */
+    void RefreshCharacteristicBrowser();
+
     int ToString(Element &par_Element, bool par_UpdateAlways) const;
     std::string ConvertPhysToString(double par_RawValue, const CHARACTERISTIC_AXIS_INFO &par_Info) const;
     static bool IsWritable(const Element &par_Element);
@@ -154,13 +163,20 @@ private:
     int m_icon{0};                        /*!< Persisted icon id (round-trip only). */
     std::uint32_t m_backgroundColor{0xFFFFFFu}; /*!< Persisted 0x00bbggrr color (round-trip only). */
     std::string m_fontString{};           /*!< Persisted "family, size" font (round-trip only). */
-    int m_columnAlignmentName{0};         /*!< Persisted name-column alignment (round-trip only). */
-    int m_columnAlignmentValue{0};        /*!< Persisted value-column alignment (round-trip only). */
-    int m_columnAlignmentUnit{0};         /*!< Persisted unit-column alignment (round-trip only). */
-    int m_columnAlignmentDisplayType{0};  /*!< Persisted display-column alignment (round-trip only). */
+    // Qt readFromIni defaults: AlignVCenter|AlignLeft (name/display), |AlignRight (value),
+    // |AlignHCenter (unit); AlignVCenter=0x80, AlignLeft=0x1, AlignRight=0x2, AlignHCenter=0x4.
+    int m_columnAlignmentName{0x0081};        /*!< Persisted name-column alignment (round-trip only). */
+    int m_columnAlignmentValue{0x0082};       /*!< Persisted value-column alignment (round-trip only). */
+    int m_columnAlignmentUnit{0x0084};        /*!< Persisted unit-column alignment (round-trip only). */
+    int m_columnAlignmentDisplayType{0x0081}; /*!< Persisted display-column alignment (round-trip only). */
 
     char m_addCharacteristicBuffer[256]{}; /*!< Settings text buffer for adding a label. */
     char m_processBuffer[256]{};           /*!< Settings text buffer for the process name. */
+    char m_renameBuffer[256]{};            /*!< Settings text buffer for the window rename field. */
+    char m_browserFilter[128]{};           /*!< Case-insensitive substring filter for the browser. */
+
+    std::vector<std::string> m_browserCharacteristics{}; /*!< Cached A2L characteristics of the link. */
+    std::vector<char> m_browserSelected{};               /*!< Parallel multi-select flags (0/1). */
 };
 
 } // namespace XilEnvImGui

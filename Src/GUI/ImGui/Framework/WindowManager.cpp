@@ -546,6 +546,34 @@ int WindowManager::RenameSheet(const char *par_OldName, const char *par_NewName)
     return 1;
 }
 
+int WindowManager::RenameWindow(const char *par_OldName, const char *par_NewName)
+{
+    if ((nullptr == par_OldName) || (nullptr == par_NewName) || ('\0' == par_NewName[0]))
+    {
+        return 0;
+    }
+    const std::string oldName{par_OldName};
+    const std::string newName{par_NewName};
+    if (oldName == newName)
+    {
+        return 1; // nothing to do
+    }
+    if (m_windowsByName.find(newName) != m_windowsByName.end())
+    {
+        return 0; // target name already in use
+    }
+    auto it = m_windowsByName.find(oldName);
+    if (m_windowsByName.end() == it)
+    {
+        return 0;
+    }
+    IWindowInstance *instance{it->second};
+    m_windowsByName.erase(it);
+    instance->SetName(newName);
+    m_windowsByName[newName] = instance;
+    return 1;
+}
+
 // -------------------------------------------------------------------------
 // Bridge free functions used by the command-queue seam.
 // -------------------------------------------------------------------------
@@ -583,6 +611,11 @@ int WmDeleteSheet(const char *par_Name)
 int WmRenameSheet(const char *par_OldName, const char *par_NewName)
 {
     return WindowManager::GetInstance().RenameSheet(par_OldName, par_NewName);
+}
+
+int WmRenameWindow(const char *par_OldName, const char *par_NewName)
+{
+    return WindowManager::GetInstance().RenameWindow(par_OldName, par_NewName);
 }
 
 } // namespace XilEnvImGui
