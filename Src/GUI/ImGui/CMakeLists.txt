@@ -137,6 +137,7 @@ target_sources(XilEnvImGui PRIVATE
     GuiBridgeStubs.cpp
     ${XILENV_QT_OSCILLOSCOPE_DIR}/OscilloscopeCyclic.c
     Framework/A2LCalBridge.cpp
+    Framework/BusConfigDialogs.cpp
     Framework/DialogManager.cpp
     Framework/SettingsDialogs.cpp
     Framework/WindowTypeRegistry.cpp

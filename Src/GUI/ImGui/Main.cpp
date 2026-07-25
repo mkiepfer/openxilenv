@@ -15,6 +15,7 @@
 #include "MainWinowSyncWithOtherThreads.h"
 
 #include "Framework/A2LCalBridge.h"
+#include "Framework/BusConfigDialogs.h"
 #include "Framework/DialogManager.h"
 #include "Framework/SettingsDialogs.h"
 #include "Framework/UpdateScheduler.h"
@@ -145,28 +146,30 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             ImGui::Separator();
             if (ImGui::MenuItem("Configure XCP over ethernet links..."))
             {
-                placeholder("Configure XCP over ethernet links");
+                XilEnvImGui::BusConfigDialogManager::GetInstance().OpenXcpOverEthernetConfig();
             }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("CAN"))
         {
+            XilEnvImGui::BusConfigDialogManager &busConfig =
+                XilEnvImGui::BusConfigDialogManager::GetInstance();
             if (ImGui::MenuItem("Config..."))
             {
-                placeholder("CAN configuration");
+                busConfig.OpenCanConfig();
             }
             if (ImGui::MenuItem("Import DBC..."))
             {
-                placeholder("CAN DBC import");
+                busConfig.OpenDbcImport();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("CCP config..."))
             {
-                placeholder("CCP configuration");
+                busConfig.OpenCcpConfig();
             }
             if (ImGui::MenuItem("XCP config..."))
             {
-                placeholder("XCP configuration");
+                busConfig.OpenXcpConfig();
             }
             ImGui::EndMenu();
         }
@@ -199,6 +202,9 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven settings dialogs (basic settings form, save-as picker, info popups).
     XilEnvImGui::SettingsDialogManager::GetInstance().Render();
+
+    // Menu-driven CAN / CCP / XCP / XCP-over-Ethernet configuration and DBC import.
+    XilEnvImGui::BusConfigDialogManager::GetInstance().Render();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float statusHeight{ImGui::GetFrameHeight()};
