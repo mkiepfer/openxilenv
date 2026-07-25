@@ -163,6 +163,29 @@ int StartupInit (void * par_Application)
     SetMainFileDescriptor(Fd);
     AddIniFileToHistory(IniFile);
 
+    // Engine/layout config split: open a second "layout" config file holding the
+    // GUI/desktop state ("GUI/..." sections). Its path is derived from the engine
+    // ini (foo.toml -> foo.layout.toml). Created empty on first run. Once set, the
+    // IniDataBase facade routes "GUI/"-prefixed sections there automatically.
+    {
+        char LayoutFile[MAX_PATH];
+        char *Dot;
+        int LayoutFd;
+        StringCopyMaxCharTruncate(LayoutFile, IniFile, sizeof(LayoutFile));
+        Dot = strrchr(LayoutFile, '.');
+        if (Dot != NULL) {
+            *Dot = '\0';
+        }
+        StringAppendMaxCharTruncate(LayoutFile, ".layout.toml", sizeof(LayoutFile));
+        LayoutFd = IniFileDataBaseOpen(LayoutFile);
+        if (LayoutFd < 0) {
+            LayoutFd = IniFileDataBaseCreateAndOpenNewIniFile(LayoutFile);
+        }
+        if (LayoutFd >= 0) {
+            SetLayoutFileDescriptor(LayoutFd);
+        }
+    }
+
     if (IniFileDataBaseReadInt("BasicSettings", "Convert Error to Message", 0, Fd)) {
         SetError2Message (1);
     }
@@ -416,11 +439,23 @@ int TerminateSelf (void)
     if (s_main_ini_val.SwitchAutomaticSaveIniOff) {
         IniFileDataBaseClose(GetMainFileDescriptor());
         SetMainFileDescriptor(-1);
+        if (GetLayoutFileDescriptor() >= 0) {
+            IniFileDataBaseClose(GetLayoutFileDescriptor());
+            SetLayoutFileDescriptor(-1);
+        }
     } else {
         // At the end save all configurations
         WriteBasicConfigurationToIni (&s_main_ini_val);
         if (s_main_ini_val.ConnectToRemoteMaster) {
             rm_WriteBackVariableSectionCache();
+        }
+        // Save the layout file too. WriteBasicConfigurationToIni above already
+        // routed the GUI keys into it (in memory); stop routing before saving so
+        // the two files are written independently.
+        if (GetLayoutFileDescriptor() >= 0) {
+            int LayoutFd = GetLayoutFileDescriptor();
+            SetLayoutFileDescriptor(-1);
+            IniFileDataBaseSave(LayoutFd, NULL, INIFILE_DATABAE_OPERATION_REMOVE);
         }
         IniFileDataBaseSave(GetMainFileDescriptor(), NULL, INIFILE_DATABAE_OPERATION_REMOVE);
     }
