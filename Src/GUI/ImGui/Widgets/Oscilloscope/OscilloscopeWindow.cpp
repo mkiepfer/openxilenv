@@ -699,7 +699,12 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const char *label{(nullptr != m_data.name_left[x]) ? m_data.name_left[x] : "?"};
+            // Legend shows the signal's live blackboard value (direct read) next to the trace, so a
+            // "trace stuck at 0" is instantly distinguishable from a dead binding (live value 0 too).
+            char label[160];
+            const char *nameLeft{(nullptr != m_data.name_left[x]) ? m_data.name_left[x] : "?"};
+            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f]", nameLeft,
+                                read_bbvari_double(m_data.vids_left[x]));
             if (0 != m_data.color_left[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_left[x]),
@@ -725,7 +730,10 @@ void OscilloscopeWindow::RenderContent(const WindowContext &par_Context)
             {
                 continue;
             }
-            const char *label{(nullptr != m_data.name_right[x]) ? m_data.name_right[x] : "?"};
+            char label[160];
+            const char *nameRight{(nullptr != m_data.name_right[x]) ? m_data.name_right[x] : "?"};
+            (void)std::snprintf(label, sizeof(label), "%s [live=%.3f]", nameRight,
+                                read_bbvari_double(m_data.vids_right[x]));
             if (0 != m_data.color_right[x])
             {
                 ImPlot::SetNextLineStyle(BlackboardColorToImVec4(m_data.color_right[x]),
