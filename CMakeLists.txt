@@ -127,6 +127,18 @@ else()
         # leak into the Qt GUI's include path.
         target_include_directories(xilenv_core PRIVATE Src/GUI/Console)
         target_compile_definitions(xilenv_core PUBLIC _M_X64)
+
+        # toml++ (header-only): TOML config backend behind the IniDataBase.h
+        # facade (migration step M1). PRIVATE — only the backend .cpp uses it.
+        include(FetchContent)
+        FetchContent_Declare(
+            tomlplusplus
+            GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+            GIT_TAG        v3.4.0
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(tomlplusplus)
+        target_link_libraries(xilenv_core PRIVATE tomlplusplus::tomlplusplus)
         if(BUILD_WITH_J1939_SUPPORT)
             target_compile_definitions(xilenv_core PUBLIC BUILD_WITH_J1939_SUPPORT)
         endif()

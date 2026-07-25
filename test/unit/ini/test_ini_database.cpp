@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <cstring>
 
 extern "C" {
@@ -128,6 +129,70 @@ TEST_F(IniDataBaseTest, WriteReadByteImage_RoundTrip_PreservesBytes)
     EXPECT_EQ(static_cast<int>(sizeof(pre_image)), result_len);
     EXPECT_EQ(pre_type, result_type);
     EXPECT_EQ(0, std::memcmp(pre_image, result_image, sizeof(pre_image)));
+}
+
+// Real file persistence round-trip through the TOML backend: write values, save
+// to a file (TOML), close, reopen (parse TOML), read back. This is what actually
+// exercises the toml++ serializer/parser and its quoting — including values that
+// contain '=', quotes, backslashes and spaces, section names with dots, and a
+// binary ByteImage blob.
+TEST(IniDataBaseTomlPersistenceTest, SaveClose_Reopen_RoundTripsValuesAndBlob)
+{
+    const char* pre_path = "xilenv_toml_roundtrip.toml";
+
+    IniFileDataBaseInit();
+    int test_fd = IniFileDataBaseCreateAndOpenNewIniFile(pre_path);
+    ASSERT_GE(test_fd, 0);
+
+    IniFileDataBaseWriteString("Section.With.Dots", "PlainKey", "plain value", test_fd);
+    IniFileDataBaseWriteString("Special", "WinPath", "C:\\temp\\a b\\x.dat", test_fd);
+    IniFileDataBaseWriteString("Special", "TrickyValue", "he said \"hi\" = ok", test_fd);
+    IniFileDataBaseWriteInt("Nums", "Int", 12345, test_fd);
+    IniFileDataBaseWriteFloat("Nums", "Float", 2.5, test_fd);
+    IniFileDataBaseWriteYesNo("Nums", "Flag", 1, test_fd);
+
+    unsigned char pre_blob[20];
+    for (int i = 0; i < 20; ++i)
+    {
+        pre_blob[i] = static_cast<unsigned char>(i * 11 + 3);
+    }
+    IniFileDataBaseWriteByteImage("Blob", "Img", 7, pre_blob, static_cast<int>(sizeof(pre_blob)), test_fd);
+
+    ASSERT_EQ(0, IniFileDataBaseSave(test_fd, nullptr, INIFILE_DATABAE_OPERATION_WRITE_ONLY));
+    IniFileDataBaseClose(test_fd);
+
+    // Reopen from disk -> forces a real TOML parse.
+    int result_fd = IniFileDataBaseOpen(pre_path);
+    ASSERT_GE(result_fd, 0);
+
+    char result_buffer[256]{};
+    IniFileDataBaseReadString("Section.With.Dots", "PlainKey", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), result_fd);
+    EXPECT_STREQ("plain value", result_buffer);
+
+    IniFileDataBaseReadString("Special", "WinPath", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), result_fd);
+    EXPECT_STREQ("C:\\temp\\a b\\x.dat", result_buffer);
+
+    IniFileDataBaseReadString("Special", "TrickyValue", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), result_fd);
+    EXPECT_STREQ("he said \"hi\" = ok", result_buffer);
+
+    EXPECT_EQ(12345, IniFileDataBaseReadInt("Nums", "Int", -1, result_fd));
+    EXPECT_DOUBLE_EQ(2.5, IniFileDataBaseReadFloat("Nums", "Float", 0.0, result_fd));
+    EXPECT_NE(0, IniFileDataBaseReadYesNo("Nums", "Flag", 0, result_fd));
+
+    int result_type = -1;
+    unsigned char result_blob[20]{};
+    const int result_len = IniFileDataBaseReadByteImage(
+        "Blob", "Img", &result_type, result_blob, static_cast<int>(sizeof(result_blob)), result_fd);
+    EXPECT_EQ(20, result_len);
+    EXPECT_EQ(7, result_type);
+    EXPECT_EQ(0, std::memcmp(pre_blob, result_blob, sizeof(pre_blob)));
+
+    IniFileDataBaseClose(result_fd);
+    IniFileDataBaseTerminate();
+    std::remove(pre_path);
 }
 
 } // namespace

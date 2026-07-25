@@ -41,6 +41,7 @@
 #include "StringMaxChar.h"
 #include "MainWinowSyncWithOtherThreads.h"
 #include "IniDatabaseInOutputFilter.h"
+#include "TomlConfigBackend.h"
 
 #define FILE_DESCRIPTOR_OFFSET  0x100
 
@@ -165,82 +166,73 @@ static char *GetLine (char **line, int *line_size, FILE *fh)
 
 static int IniFileDataBaseWriteStringNoLock (const char* par_Section, const char* par_Entry, const char* par_Text, int par_FileDescriptor);
 
+struct IniTomlLoadContext {
+    int FileDescriptor;
+    int Error;
+};
+
+// Called by the TOML backend once per section/key/value; feeds the value into
+// the in-memory DB exactly like the former line parser did.
+static int OnTomlConfigEntry(const char *par_Section, const char *par_Key, const char *par_Value, void *par_Ctx)
+{
+    struct IniTomlLoadContext *Ctx = (struct IniTomlLoadContext *)par_Ctx;
+    if (!IniFileDataBaseWriteStringNoLock(par_Section, par_Key, par_Value, Ctx->FileDescriptor)) {
+        Ctx->Error = 1;
+        return -1;
+    }
+    return 0;
+}
+
 static int ParserIniFile(FILE* par_FileHanlde, int par_FileDescriptor, uint64_t par_IniFileSize)
 {
-    char *Line = NULL;
-    int LineSize = 0;
-    char Section[INI_MAX_SECTION_LENGTH];
-    char Entry[INI_MAX_ENTRYNAME_LENGTH];
-    char *p, *n;
-    int c;
-    int32_t IniFileProcess = 0;
-    int32_t Percent, Percent_old=0L;
+    char *Buffer;
+    size_t Capacity;
+    size_t Length = 0;
+    size_t BytesRead;
     int ProgressBarId;
+    int ParseResult;
+    struct IniTomlLoadContext Ctx;
 
     ProgressBarId = OpenProgressBarFromOtherThread("(Read INI)");
 
-/*  only for debugging */
-    /*static FILE *fh;
-    if (fh == NULL) {
-        fh = fopen("c:\\temp\\inidb.txt", "wt");
-    } else {
-        fprintf (fh, "\n\n");
-    }*/
-
-    while (GetLine (&Line, &LineSize, par_FileHanlde) != NULL) {
-/*  only for debugging*/
-        /*fprintf(fh, "%s\n", Line);
-        fflush(fh);*/
-        IniFileProcess += (int32_t)strlen (Line);
-        Percent = (int32_t)(100.0 * (double)IniFileProcess / (double)par_IniFileSize);
-        if (Percent > Percent_old) {
-            Percent_old = Percent;
-            if (ProgressBarId >= 0) SetProgressBarFromOtherThread(ProgressBarId, Percent);
-        }
-        p = Line;
-        while (IsSpace (*p)) p++;
-        if (*p == ';') continue;           // Comment line
-        if (*p == '[') {   // section
-            p++;
-            c = 0;
-            while (*p != ']') {
-                if (*p == '\0') break; //  [-bracket without a ]-bracket
-                if (c >= INI_MAX_SECTION_LENGTH-1) break;  // section max. 1023 characters long
-                Section[c++] = *p++;
+    // Read the whole document into memory for the TOML parser. par_IniFileSize is
+    // an estimate (0 for filter pipes), so the buffer still grows if needed.
+    Capacity = (par_IniFileSize > 0) ? ((size_t)par_IniFileSize + 1u) : (size_t)65536u;
+    Buffer = (char *)my_malloc(Capacity);
+    if (Buffer == NULL) {
+        if (ProgressBarId >= 0) CloseProgressBarFromOtherThread(ProgressBarId);
+        return -1;
+    }
+    while ((BytesRead = fread(Buffer + Length, 1, Capacity - Length, par_FileHanlde)) > 0) {
+        Length += BytesRead;
+        if (Length == Capacity) {
+            char *Bigger;
+            Capacity *= 2u;
+            Bigger = (char *)my_realloc(Buffer, Capacity);
+            if (Bigger == NULL) {
+                my_free(Buffer);
+                if (ProgressBarId >= 0) CloseProgressBarFromOtherThread(ProgressBarId);
+                return -1;
             }
-            Section[c] = '\0';
-        } else {           // entry
-            c = 0;
-            while (*p != '=') {
-                if (*p == '\0') break; // no entry new line
-                if (c >= INI_MAX_ENTRYNAME_LENGTH-1) break;  // entry max. 1023  characters long
-                Entry[c++] = *p++;
-            }
-            // Remove whitespaces between entry and "="-character
-            while ((c != 0) && IsSpace(Entry[c-1])) c--;
-            Entry[c] = '\0';
-            if (!c) continue;   // New line because entry has 0 characters
-            while ((c != 0) && IsSpace(Entry[c])) c--;
-            Entry[c+1] = '\0';
-
-            if (*p++ != '=') continue;
-            while (IsSpace (*p)) p++; // Remove whitespaces after the "="-character
-            n = p;
-            while ((*n != '\0') && (*n != '\n')) n++;
-            *n = '\0';
-            if ((*p != '\0') && (*p != '\n')) {
-                if (!IniFileDataBaseWriteStringNoLock(Section, Entry, p, par_FileDescriptor)) {
-                    close_file (par_FileHanlde);
-                    if (ProgressBarId >= 0) CloseProgressBarFromOtherThread(ProgressBarId);
-                    return -1;
-                }
-            }
+            Buffer = Bigger;
         }
     }
-    if (Line != NULL) my_free(Line);
+    if (ProgressBarId >= 0) SetProgressBarFromOtherThread(ProgressBarId, 50);
+
+    Ctx.FileDescriptor = par_FileDescriptor;
+    Ctx.Error = 0;
+    ParseResult = TomlConfigBackendParseBuffer(Buffer, Length, OnTomlConfigEntry, &Ctx);
+    my_free(Buffer);
+
     if (ProgressBarId >= 0) {
         SetProgressBarFromOtherThread(ProgressBarId, 100);
         CloseProgressBarFromOtherThread(ProgressBarId);
+    }
+
+    if (ParseResult != 0) {
+        // Mirror the former write-error path: close the handle and fail.
+        close_file (par_FileHanlde);
+        return -1;
     }
     return 0;
 }
@@ -772,8 +764,8 @@ static int IniFileDataBaseSaveInternal(int par_FileDescriptor, const char *par_D
         goto __ERROUT;
     }
 
-    if (fprintf (fh, "; This is an OpenXilEnv configuration file.\n"
-                     "; The syntax is similar to an INI file except that the section and entry name are case sensitive\n") == EOF) {
+    if (fputs ("# This is an OpenXilEnv configuration file (TOML format).\n"
+               "# Section and entry names are case sensitive.\n", fh) == EOF) {
         goto __ERROUT;
     }
 
@@ -789,25 +781,41 @@ static int IniFileDataBaseSaveInternal(int par_FileDescriptor, const char *par_D
                   sizeof(Section->Entrys[0]), SortEntryCompareFunction);
         }
     }
-    for (s = 0; s < AllLoadedIniFiles[FileIndex].SectionCount; s++) {
-        INI_DB_SECTION_ELEM *Section = AllLoadedIniFiles[FileIndex].Sections[s];
-        if (!s_main_ini_val.DontSaveBlackbardVariableInfosIniSection ||
-            (s_main_ini_val.DontSaveBlackbardVariableInfosIniSection && strcmp (Section->Name, "Variables"))) {
-            int e;
-            if (fprintf (fh, "\n[%s]\n", Section->Name) == EOF) {
-                goto __ERROUT;
-            }
-            for (e = 0; e < Section->EntryCount; e++) {
-                if (fprintf (fh, "  %s\n", Section->Entrys[e]) == EOF) {
-                    goto __ERROUT;
+    {
+        // Build the whole document with toml++ (correct quoting/escaping), then
+        // write it through the already-opened file handle so the backup/filter/
+        // operation handling above stays intact.
+        void *TomlHandle = TomlConfigBackendCreate();
+        char *TomlText;
+        if (TomlHandle == NULL) {
+            goto __ERROUT;
+        }
+        for (s = 0; s < AllLoadedIniFiles[FileIndex].SectionCount; s++) {
+            INI_DB_SECTION_ELEM *Section = AllLoadedIniFiles[FileIndex].Sections[s];
+            if (!s_main_ini_val.DontSaveBlackbardVariableInfosIniSection ||
+                (s_main_ini_val.DontSaveBlackbardVariableInfosIniSection && strcmp (Section->Name, "Variables"))) {
+                int e;
+                TomlConfigBackendAddSection (TomlHandle, Section->Name);
+                for (e = 0; e < Section->EntryCount; e++) {
+                    TomlConfigBackendAddEntry (TomlHandle, Section->Name, Section->Entrys[e]);
                 }
             }
+            Percent = (100 * s) / (AllLoadedIniFiles[FileIndex].SectionCount);
+            if (Percent > PercentOld) {
+                PercentOld = Percent;
+                if (ProgressBarID >= 0) SetProgressBarFromOtherThread(ProgressBarID, PercentOld);
+            }
         }
-        Percent = (100 * s) / (AllLoadedIniFiles[FileIndex].SectionCount);
-        if (Percent > PercentOld) {
-            PercentOld = Percent;
-            if (ProgressBarID >= 0) SetProgressBarFromOtherThread(ProgressBarID, PercentOld);
+        TomlText = TomlConfigBackendSerialize (TomlHandle);
+        TomlConfigBackendFree (TomlHandle);
+        if (TomlText == NULL) {
+            goto __ERROUT;
         }
+        if (fputs (TomlText, fh) == EOF) {
+            TomlConfigBackendFreeString (TomlText);
+            goto __ERROUT;
+        }
+        TomlConfigBackendFreeString (TomlText);
     }
     switch(par_Operation) {
     case INIFILE_DATABAE_OPERATION_REMOVE:
@@ -1837,10 +1845,10 @@ int CreateNewEmptyIniFile(const char *par_Name)
     if ((fh = open_file (par_Name, "wt")) == NULL) {
         return -1;
     }
-    if (fprintf (fh, "; This is an OpenXilEnv configuration file.\n"
-                     "; The syntax is similar to an INI file except that the section and entry name are case sensitive\n"
+    if (fprintf (fh, "# This is an OpenXilEnv configuration file (TOML format).\n"
+                     "# Section and entry names are case sensitive.\n"
                      "[%s]\n"
-                     "  %s=%g.%d\n",
+                     "%s = \"%g.%d\"\n",
                      OPT_FILE_INFOS, OPT_FILE_VERSION, XILENV_VERSION/1000.0, XILENV_MINOR_VERSION) == EOF) {
         close_file(fh);
         return -1;
