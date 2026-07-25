@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "Widgets/Bargraph/BargraphWindow.h"
+#include "Widgets/CanMessage/CanMessageWindow.h"
 #include "Widgets/Enum/EnumWindow.h"
 #include "Widgets/Knob/KnobWindow.h"
 #include "Widgets/Lamps/LampsWindow.h"
@@ -59,6 +60,7 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<KnobWindowType>());
     registry.Register(std::make_unique<TachoWindowType>());
     registry.Register(std::make_unique<OscilloscopeWindowType>());
+    registry.Register(std::make_unique<CanMessageWindowType>());
     // Further built-in types follow in later migration steps.
 }
 
