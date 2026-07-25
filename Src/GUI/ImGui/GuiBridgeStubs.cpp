@@ -3,6 +3,7 @@
 
 #include "Platform.h"
 
+#include "Framework/DebugDialogs.h"
 #include "Framework/DialogManager.h"
 
 #include "BlackboardObserver.h"
@@ -16,6 +17,8 @@
 
 extern "C" {
 #include "ConfigurablePrefix.h"
+#include "Scheduler.h"
+#include "ThrowError.h"
 }
 
 /*
@@ -67,10 +70,25 @@ int ErrorMessagesFromOtherThreadInst_Error(int par_Level, uint64_t par_Cycle, co
                 (nullptr != par_HeaderString) ? par_HeaderString : "",
                 (nullptr != par_ErrorString) ? par_ErrorString : "");
     std::fflush(stdout);
-    // Surface the ThrowError message in the ImGui message log (mutex-guarded, so
-    // this is safe from the GUI or any worker thread).
-    XilEnvImGui::DialogManager::GetInstance().AddErrorMessage(par_Level, par_HeaderString,
-                                                              par_ErrorString);
+    // The realtime / no-stop levels populate the non-modal extended-error window
+    // (mirrors the Qt ErrorMessagesGuiThread::AddNoneModalErrorMessage path); every
+    // other level is surfaced in the general ImGui message log. Both sinks are
+    // mutex-guarded, so this is safe from the GUI or any worker thread.
+    switch (par_Level)
+    {
+    case RT_ERROR:
+    case INFO_NO_STOP:
+    case WARNING_NO_STOP:
+    case ERROR_NO_STOP:
+    case INFO_NOT_WRITEN_TO_MSG_FILE:
+        XilEnvImGui::DebugDialogManager::GetInstance().AddExtErrorMessage(
+            par_Level, par_Cycle, GetCurrentPid(), par_ErrorString);
+        break;
+    default:
+        XilEnvImGui::DialogManager::GetInstance().AddErrorMessage(par_Level, par_HeaderString,
+                                                                  par_ErrorString);
+        break;
+    }
     return IDOK;
 }
 

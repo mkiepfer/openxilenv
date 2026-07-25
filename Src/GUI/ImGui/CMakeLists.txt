@@ -141,6 +141,7 @@ target_sources(XilEnvImGui PRIVATE
     Framework/BusConfigDialogs.cpp
     Framework/ControlDialogs.cpp
     Framework/ConversionDialogs.cpp
+    Framework/DebugDialogs.cpp
     Framework/DialogManager.cpp
     Framework/ImportExportDialogs.cpp
     Framework/SettingsDialogs.cpp

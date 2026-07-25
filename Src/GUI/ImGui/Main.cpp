@@ -19,6 +19,7 @@
 #include "Framework/BusConfigDialogs.h"
 #include "Framework/ControlDialogs.h"
 #include "Framework/ConversionDialogs.h"
+#include "Framework/DebugDialogs.h"
 #include "Framework/DialogManager.h"
 #include "Framework/ImportExportDialogs.h"
 #include "Framework/SettingsDialogs.h"
@@ -214,6 +215,11 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
         {
             XilEnvImGui::ControlDialogManager &control =
                 XilEnvImGui::ControlDialogManager::GetInstance();
+            if (ImGui::MenuItem("External process copy list..."))
+            {
+                XilEnvImGui::DebugDialogManager::GetInstance().OpenExternProcessCopyList();
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Configure process..."))
             {
                 control.OpenConfigureProcess();
@@ -228,6 +234,11 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
             {
                 control.OpenConfigureSchedulers();
             }
+            if (ImGui::MenuItem("Barrier history logging..."))
+            {
+                XilEnvImGui::DebugDialogManager::GetInstance().OpenBarrierHistory();
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Configure barriers..."))
             {
                 control.OpenConfigureBarriers();
@@ -276,6 +287,38 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
         }
         if (ImGui::BeginMenu("Help"))
         {
+            if (ImGui::BeginMenu("Debug"))
+            {
+                XilEnvImGui::DebugDialogManager &debug =
+                    XilEnvImGui::DebugDialogManager::GetInstance();
+                if (ImGui::MenuItem("Internals..."))
+                {
+                    debug.OpenInternals();
+                }
+                if (ImGui::MenuItem("Active equations..."))
+                {
+                    debug.OpenActiveEquations();
+                }
+                if (ImGui::MenuItem("Loaded debug infos..."))
+                {
+                    debug.OpenLoadedDebugInfos();
+                }
+                if (ImGui::MenuItem("Referenced labels..."))
+                {
+                    debug.OpenReferencedLabels();
+                }
+                if (ImGui::MenuItem("Remote master call statistics..."))
+                {
+                    debug.OpenRemoteMasterCallStatistics();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Extended errors..."))
+                {
+                    debug.OpenExtError();
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("About..."))
             {
                 XilEnvImGui::ControlDialogManager::GetInstance().OpenAbout();
@@ -309,6 +352,10 @@ void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 
     // Menu-driven engine-control dialogs (process/scheduler/barrier config, hotkeys, about).
     XilEnvImGui::ControlDialogManager::GetInstance().Render();
+
+    // Read-only debug/inspection dialogs (internals, debug infos, active equations, extended
+    // errors, barrier history, external-process copy list, referenced labels).
+    XilEnvImGui::DebugDialogManager::GetInstance().Render();
 
     // Signal-conversion editor dialogs (dispatcher plus type-specific sub-editors).
     XilEnvImGui::ConversionDialogManager::GetInstance().Render();
