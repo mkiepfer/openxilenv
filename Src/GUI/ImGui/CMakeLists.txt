@@ -12,8 +12,8 @@ set(XILENV_IMGUI_GUI_ROOT ${CMAKE_CURRENT_LIST_DIR})
 # Fetched with FetchContent, pinned by release tag (mirrors the toml++ and     #
 # googletest pattern). ImGui and ImPlot ship no CMakeLists, so MakeAvailable   #
 # only populates their source trees; the `imgui` target below compiles the     #
-# needed translation units. ImPlot is fetched for the oscilloscope port (M3+)  #
-# but is not compiled yet.                                                      #
+# needed translation units. ImPlot is compiled into the `imgui` lib (M5) for    #
+# the oscilloscope port.                                                        #
 ################################################################################
 
 include(FetchContent)
@@ -101,14 +101,14 @@ add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    ${implot_SOURCE_DIR}/implot.cpp
+    ${implot_SOURCE_DIR}/implot_items.cpp)
 
 target_include_directories(imgui PUBLIC
     ${imgui_SOURCE_DIR}
-    ${imgui_SOURCE_DIR}/backends)
-
-# Expose the ImPlot sources to consumers (compiled in a later migration step).
-target_include_directories(imgui PUBLIC ${implot_SOURCE_DIR})
+    ${imgui_SOURCE_DIR}/backends
+    ${implot_SOURCE_DIR})
 
 target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
@@ -123,11 +123,19 @@ target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 # root as an include dir so headers resolve as "Framework/..." / "Widgets/...".
 target_include_directories(XilEnvImGui PRIVATE ${XILENV_IMGUI_GUI_ROOT})
 
+# The real scheduler-side oscilloscope sampler (ring buffers) is reused verbatim
+# from the Qt tree: OscilloscopeCyclic.c is pure C (core headers only, no Qt),
+# so it is compiled straight into XilEnvImGui instead of the empty M2 stub. Its
+# directory is exposed so OscilloscopeData.h / OscilloscopeCyclic.h resolve for
+# the window port and for StartupInit.c (which calls InitOsciCycleCriticalSection).
+set(XILENV_QT_OSCILLOSCOPE_DIR ${XILENV_IMGUI_GUI_ROOT}/../Qt/Widgets/Oscilloscope)
+target_include_directories(XilEnvImGui PRIVATE ${XILENV_QT_OSCILLOSCOPE_DIR})
+
 target_sources(XilEnvImGui PRIVATE
     Main.cpp
     ImGuiSyncWithOtherThreads.cpp
     GuiBridgeStubs.cpp
-    OscilloscopeCyclic.c
+    ${XILENV_QT_OSCILLOSCOPE_DIR}/OscilloscopeCyclic.c
     Framework/WindowTypeRegistry.cpp
     Framework/UpdateScheduler.cpp
     Framework/WindowManager.cpp
@@ -142,6 +150,7 @@ target_sources(XilEnvImGui PRIVATE
     Widgets/Bargraph/BargraphWindow.cpp
     Widgets/Lamps/LampsWindow.cpp
     Widgets/Knob/KnobWindow.cpp
-    Widgets/Tacho/TachoWindow.cpp)
+    Widgets/Tacho/TachoWindow.cpp
+    Widgets/Oscilloscope/OscilloscopeWindow.cpp)
 
 target_link_libraries(XilEnvImGui PRIVATE imgui)

@@ -218,6 +218,11 @@ int ExecuteCommand(GuiCommand &par_Command)
                                             static_cast<RPC_API_BASE_MESSAGE *>(const_cast<void *>(par_Command.ptr1)),
                                             static_cast<RPC_API_BASE_MESSAGE_ACK *>(par_Command.ptr2));
 
+    case GuiCommandType::StopOscilloscope:
+        // Freeze the identified oscilloscope's acquisition (single-shot trigger /
+        // external stop) on the render thread; matches the Qt StopOscilloscope slot.
+        return XilEnvImGui::WmStopOscilloscope(par_Command.ptr0, par_Command.u64Arg0);
+
     default:
         // Every other seam request has no window model to act on yet.
         return 0;

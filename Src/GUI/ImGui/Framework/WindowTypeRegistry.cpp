@@ -8,6 +8,7 @@
 #include "Widgets/Enum/EnumWindow.h"
 #include "Widgets/Knob/KnobWindow.h"
 #include "Widgets/Lamps/LampsWindow.h"
+#include "Widgets/Oscilloscope/OscilloscopeWindow.h"
 #include "Widgets/Slider/SliderWindow.h"
 #include "Widgets/Tacho/TachoWindow.h"
 #include "Widgets/Text/TextWindow.h"
@@ -57,7 +58,8 @@ void RegisterBuiltinWindowTypes()
     registry.Register(std::make_unique<LampsWindowType>());
     registry.Register(std::make_unique<KnobWindowType>());
     registry.Register(std::make_unique<TachoWindowType>());
-    // Further built-in types (Oscilloscope, ...) follow in M5+.
+    registry.Register(std::make_unique<OscilloscopeWindowType>());
+    // Further built-in types follow in later migration steps.
 }
 
 } // namespace XilEnvImGui

@@ -10,6 +10,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "implot.h"
 
 #include "MainWinowSyncWithOtherThreads.h"
 
@@ -201,6 +202,7 @@ int main(int argc, char *argv[])
 
             IMGUI_CHECKVERSION();
             ImGui::CreateContext();
+            ImPlot::CreateContext();
             ImGuiIO &io = ImGui::GetIO();
             io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
             io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
@@ -275,6 +277,7 @@ int main(int argc, char *argv[])
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
+        ImPlot::DestroyContext();
         ImGui::DestroyContext();
         glfwDestroyWindow(window);
         glfwTerminate();

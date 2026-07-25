@@ -8,6 +8,8 @@
 #ifndef SRC_GUI_IMGUI_FRAMEWORK_WINDOWMANAGERBRIDGE_H
 #define SRC_GUI_IMGUI_FRAMEWORK_WINDOWMANAGERBRIDGE_H
 
+#include <cstdint>
+
 namespace XilEnvImGui
 {
 
@@ -61,6 +63,19 @@ int WmDeleteSheet(const char *par_Name);
  * @return 1 if renamed, 0 otherwise.
  */
 int WmRenameSheet(const char *par_OldName, const char *par_NewName);
+
+/**
+ * @brief Stops acquisition of the oscilloscope window identified by a widget pointer.
+ * @details Drives StopOscilloscopeFromOtherThread from the drained command queue.
+ *          The identity pointer is the value the oscilloscope window registered with
+ *          RegisterOscilloscope (its own instance pointer), mirroring how the Qt build
+ *          hands its OscilloscopeWidget* through the same seam.
+ * @param[in] par_Widget Oscilloscope identity pointer. May be nullptr (no match).
+ * @param[in] par_Time End timestamp (simulated ns) to freeze the trace at.
+ * @return 1 if a matching oscilloscope was stopped, 0 otherwise.
+ * @note Must be invoked on the render thread (from DrainGuiCommandQueue).
+ */
+int WmStopOscilloscope(void *par_Widget, std::uint64_t par_Time);
 
 } // namespace XilEnvImGui
 
