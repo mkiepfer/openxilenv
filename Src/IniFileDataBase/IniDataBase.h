@@ -38,6 +38,13 @@ void SetMainIniFilename(const char *par_FileName);
 void SetLayoutFileDescriptor(int par_FileDescriptor);
 int GetLayoutFileDescriptor(void);
 
+// Startup migration for the engine/layout split: move all "GUI/..." sections from
+// the main (engine) descriptor to the layout descriptor. Needed for a legacy
+// combined config (all sections in one file, loaded into the main fd) so its GUI
+// windows become visible; a no-op for already-split configs. Call once after both
+// descriptors are set. Returns 0 on success, -1 on invalid descriptors.
+int IniFileDataBaseMoveGuiSectionsToLayout(void);
+
 int IniFileDataBaseInit(void);
 void IniFileDataBaseTerminate(void);
 int IniFileDataBaseOpen(const char *par_Filename);

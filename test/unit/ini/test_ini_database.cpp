@@ -273,4 +273,49 @@ TEST(IniDataBaseDualReadTest, LoadsLegacyIniFileViaFallback)
     std::remove(pre_path);
 }
 
+// Legacy combined config: GUI/ sections loaded into the engine descriptor must be
+// moved to the layout descriptor at startup so the GUI (which reads GUI/ via the
+// layout routing) finds its windows. Engine sections stay put.
+TEST(IniDataBaseLayoutSplitTest, MoveGuiSectionsToLayout_LegacyCombined)
+{
+    const char* pre_enginePath = "xilenv_migrate_engine.toml";
+    const char* pre_layoutPath = "xilenv_migrate_layout.toml";
+
+    IniFileDataBaseInit();
+    int test_engineFd = IniFileDataBaseCreateAndOpenNewIniFile(pre_enginePath);
+    int test_layoutFd = IniFileDataBaseCreateAndOpenNewIniFile(pre_layoutPath);
+    ASSERT_GE(test_engineFd, 0);
+    ASSERT_GE(test_layoutFd, 0);
+
+    // Combined config: GUI/ + engine sections all in the engine fd, written before
+    // the layout fd is set (so no routing yet).
+    SetMainFileDescriptor(test_engineFd);
+    IniFileDataBaseWriteString("GUI/Widgets/W1", "type", "Text", test_engineFd);
+    IniFileDataBaseWriteString("GUI/AllTextWindows", "W0", "W1", test_engineFd);
+    IniFileDataBaseWriteString("Scheduler", "Period", "0.01", test_engineFd);
+
+    SetLayoutFileDescriptor(test_layoutFd);
+    IniFileDataBaseMoveGuiSectionsToLayout();
+
+    // Inspect physical placement with routing off.
+    SetLayoutFileDescriptor(-1);
+    EXPECT_EQ(0, IniFileDataBaseLookIfSectionExist("GUI/Widgets/W1", test_engineFd));
+    EXPECT_NE(0, IniFileDataBaseLookIfSectionExist("GUI/Widgets/W1", test_layoutFd));
+    EXPECT_NE(0, IniFileDataBaseLookIfSectionExist("GUI/AllTextWindows", test_layoutFd));
+    EXPECT_NE(0, IniFileDataBaseLookIfSectionExist("Scheduler", test_engineFd));
+    EXPECT_EQ(0, IniFileDataBaseLookIfSectionExist("Scheduler", test_layoutFd));
+
+    char result_buffer[64]{};
+    IniFileDataBaseReadString("GUI/Widgets/W1", "type", "X", result_buffer,
+                              static_cast<int>(sizeof(result_buffer)), test_layoutFd);
+    EXPECT_STREQ("Text", result_buffer);
+
+    SetMainFileDescriptor(-1);
+    IniFileDataBaseClose(test_engineFd);
+    IniFileDataBaseClose(test_layoutFd);
+    IniFileDataBaseTerminate();
+    std::remove(pre_enginePath);
+    std::remove(pre_layoutPath);
+}
+
 } // namespace

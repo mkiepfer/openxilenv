@@ -183,6 +183,11 @@ int StartupInit (void * par_Application)
         }
         if (LayoutFd >= 0) {
             SetLayoutFileDescriptor(LayoutFd);
+            // A legacy combined config (e.g. an old .ini) loaded all sections,
+            // including GUI/ windows/sheets, into the engine descriptor. Move
+            // them to the layout descriptor so the GUI (which reads GUI/ sections
+            // through the facade's layout routing) actually finds its windows.
+            IniFileDataBaseMoveGuiSectionsToLayout();
         }
     }
 

@@ -1943,6 +1943,59 @@ int IniFileDataBaseGetSectionNumberOfEntrys (const char *par_Section, int par_Fi
     return Ret;
 }
 
+int IniFileDataBaseMoveGuiSectionsToLayout(void)
+{
+    int MainIndex;
+    int LayoutIndex;
+    int s;
+
+    if ((MainFileDescriptor < 0) || (LayoutFileDescriptor < 0)) {
+        return 0;   // no split active
+    }
+    INI_ENTER_CS (&IniDBCriticalSection);
+    MainIndex = GetIndexByDescriptor(MainFileDescriptor);
+    LayoutIndex = GetIndexByDescriptor(LayoutFileDescriptor);
+    if ((MainIndex < 0) || (LayoutIndex < 0) || (MainIndex == LayoutIndex)) {
+        INI_LEAVE_CS (&IniDBCriticalSection);
+        return -1;
+    }
+    // A legacy combined config loads all sections (incl. "GUI/...") into the main
+    // (engine) descriptor. The facade routes GUI/ reads to the layout descriptor,
+    // so move those sections there once at startup; already-split configs have no
+    // GUI/ sections on the main fd and this is a no-op.
+    for (s = 0; s < AllLoadedIniFiles[MainIndex].SectionCount; ) {
+        INI_DB_SECTION_ELEM *SrcSection = AllLoadedIniFiles[MainIndex].Sections[s];
+        if (strncmp(SrcSection->Name, "GUI/", 4) == 0) {
+            INI_DB_SECTION_ELEM *DstSection = GetSection(LayoutIndex, SrcSection->Name);
+            if (DstSection == NULL) {
+                DstSection = AddNewSection(LayoutIndex, SrcSection->Name);
+            }
+            if (DstSection != NULL) {
+                int e;
+                for (e = 0; e < SrcSection->EntryCount; e++) {
+                    char *Line = SrcSection->Entrys[e];
+                    char *Equals = strchr(Line, '=');
+                    if (Equals != NULL) {
+                        char Key[INI_MAX_ENTRYNAME_LENGTH];
+                        size_t KeyLen = (size_t)(Equals - Line);
+                        if (KeyLen >= sizeof(Key)) {
+                            KeyLen = sizeof(Key) - 1;
+                        }
+                        memcpy(Key, Line, KeyLen);
+                        Key[KeyLen] = '\0';
+                        RplaceOrAddNewEntry(DstSection, Key, Equals + 1);
+                    }
+                }
+            }
+            DeleteSection(MainIndex, SrcSection->Name);   // section removed; keep s
+        } else {
+            s++;
+        }
+    }
+    INI_LEAVE_CS (&IniDBCriticalSection);
+    return 0;
+}
+
 void IniFileDataBaseEnterCriticalSectionUser(const char *par_File, int par_Line)
 {
     INI_ENTER_CS (&IniDBCriticalSectionUser);
