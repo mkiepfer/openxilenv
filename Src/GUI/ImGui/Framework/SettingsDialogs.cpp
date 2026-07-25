@@ -149,8 +149,60 @@ void RenderSection(const char *par_Title, std::vector<FormField> &par_Fields)
 }
 
 /**
+ * @brief True if @p par_Str ends with @p par_Suffix (case-insensitive).
+ */
+bool EndsWithCaseInsensitive(const std::string &par_Str, const std::string &par_Suffix)
+{
+    if (par_Str.size() < par_Suffix.size())
+    {
+        return false;
+    }
+    const std::string::size_type off{par_Str.size() - par_Suffix.size()};
+    for (std::string::size_type i{0}; i < par_Suffix.size(); ++i)
+    {
+        if (std::tolower(static_cast<unsigned char>(par_Str[off + i])) !=
+            std::tolower(static_cast<unsigned char>(par_Suffix[i])))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Normalizes a user-typed Save-As target into a clean "<base>.toml" main config path.
+ * @details Strips trailing dots/spaces and a trailing ".toml" and/or ".layout" so a name typed as
+ *          "foo.", "foo.toml" or even "foo.layout.toml" all collapse to base "foo", then appends a
+ *          single ".toml". Guarantees the derived layout path (@ref DeriveLayoutPath) and the
+ *          startup derivation stay in sync — preventing "foo..toml" / "foo.layout.layout.toml".
+ */
+std::string NormalizeMainConfigPath(const std::string &par_Raw)
+{
+    std::string path{par_Raw};
+    while (!path.empty() && (('.' == path.back()) || (' ' == path.back())))
+    {
+        path.pop_back();
+    }
+    if (EndsWithCaseInsensitive(path, ".toml"))
+    {
+        path.erase(path.size() - 5);
+    }
+    if (EndsWithCaseInsensitive(path, ".layout"))
+    {
+        path.erase(path.size() - 7);
+    }
+    while (!path.empty() && ('.' == path.back()))
+    {
+        path.pop_back();
+    }
+    path.append(".toml");
+    return path;
+}
+
+/**
  * @brief Derives the GUI layout file path from a main config path (foo.toml -> foo.layout.toml).
  * @details Mirrors StartupInit's derivation: strip the last extension, append ".layout.toml".
+ *          Expects an already-normalized main path (see @ref NormalizeMainConfigPath).
  */
 std::string DeriveLayoutPath(const std::string &par_MainPath)
 {
@@ -205,7 +257,11 @@ bool SaveConfigurationAs(const char *par_Path)
 
     const int fd{GetMainFileDescriptor()};
 
-    if (0 != CreateNewEmptyIniFile(par_Path))
+    // Normalize the user-typed target to a clean "<base>.toml" so the engine and derived layout
+    // paths stay in sync and reopening finds the layout (avoids foo..toml / foo.layout.layout.toml).
+    const std::string mainPath{NormalizeMainConfigPath(par_Path)};
+
+    if (0 != CreateNewEmptyIniFile(mainPath.c_str()))
     {
         DialogManager::GetInstance().AddErrorMessage(2, "Save configuration as",
                                                      "cannot create the target file (maybe write protected)");
@@ -216,14 +272,14 @@ bool SaveConfigurationAs(const char *par_Path)
     WindowManager::GetInstance().SaveLayout(fd);
     (void)write_process_list2ini();
 
-    // Save the GUI layout descriptor to the matching "<path w/o ext>.layout.toml" and rename the
-    // descriptor to it — else the window arrangement stays orphaned in the OLD layout file and
-    // reopening the new config shows an empty desktop. Layout is saved before the engine file,
-    // matching StartupInit's shutdown order.
+    // Save the GUI layout descriptor to the matching "<base>.layout.toml" and rename the descriptor
+    // to it — else the window arrangement stays orphaned in the OLD layout file and reopening the
+    // new config shows an empty desktop. Layout is saved before the engine file, matching
+    // StartupInit's shutdown order.
     const int layoutFd{GetLayoutFileDescriptor()};
     if (0 <= layoutFd)
     {
-        const std::string layoutPath{DeriveLayoutPath(par_Path)};
+        const std::string layoutPath{DeriveLayoutPath(mainPath)};
         (void)CreateNewEmptyIniFile(layoutPath.c_str());
         if (0 != IniFileDataBaseSave(layoutFd, layoutPath.c_str(), INIFILE_DATABAE_OPERATION_RENAME))
         {
@@ -233,13 +289,13 @@ bool SaveConfigurationAs(const char *par_Path)
         }
     }
 
-    if (0 != IniFileDataBaseSave(fd, par_Path, INIFILE_DATABAE_OPERATION_RENAME))
+    if (0 != IniFileDataBaseSave(fd, mainPath.c_str(), INIFILE_DATABAE_OPERATION_RENAME))
     {
         DialogManager::GetInstance().AddErrorMessage(2, "Save configuration as",
                                                      "cannot write the target configuration file");
         return false;
     }
-    (void)set_ini_path(par_Path);
+    (void)set_ini_path(mainPath.c_str());
     return true;
 }
 
