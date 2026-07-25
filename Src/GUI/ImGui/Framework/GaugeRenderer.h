@@ -56,6 +56,16 @@ struct GaugeStyle
 [[nodiscard]] double GaugeMouseToAngle(float par_Dx, float par_Dy);
 
 /**
+ * @brief Reports whether a gauge angle lies on the active scale (not in the dead sector).
+ * @param[in] par_AngleDeg Angle in degrees, clockwise from top (as from GaugeMouseToAngle).
+ * @param[in] par_Style Gauge angle configuration.
+ * @return true if minAngle <= angle <= maxAngle, false while inside the bottom dead sector.
+ * @note Used by the interactive Knob to freeze the value (overwind) while the cursor drags
+ *       through the gap, instead of snapping the setpoint from one end to the other.
+ */
+[[nodiscard]] bool GaugeAngleIsInScale(double par_AngleDeg, const GaugeStyle &par_Style);
+
+/**
  * @brief Maps a gauge angle back to a value, clamped to the nearest scale end.
  * @param[in] par_AngleDeg Angle in degrees, clockwise from top (as from GaugeMouseToAngle).
  * @param[in] par_Min Lower bound.

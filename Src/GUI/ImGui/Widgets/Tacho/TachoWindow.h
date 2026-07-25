@@ -33,7 +33,9 @@ public:
     }
     [[nodiscard]] const char *GetTypeName() const override
     {
-        return "Tacho";
+        // Persisted "type=" string; must match the Qt TachoType WindowTypeName so a window
+        // saved by the ImGui GUI is recognized by the legacy Qt loader (Sheets.cpp dispatch).
+        return "Tachometer";
     }
     [[nodiscard]] const char *GetIniListName() const override
     {

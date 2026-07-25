@@ -96,6 +96,11 @@ double GaugeMouseToAngle(float par_Dx, float par_Dy)
     return std::atan2(static_cast<double>(par_Dx), static_cast<double>(-par_Dy)) / DEG_TO_RAD;
 }
 
+bool GaugeAngleIsInScale(double par_AngleDeg, const GaugeStyle &par_Style)
+{
+    return (par_AngleDeg >= par_Style.minAngle) && (par_AngleDeg <= par_Style.maxAngle);
+}
+
 double GaugeAngleToValue(double par_AngleDeg, double par_Min, double par_Max, const GaugeStyle &par_Style)
 {
     const double range{(par_Max > par_Min) ? (par_Max - par_Min) : 1.0};

@@ -122,8 +122,14 @@ void KnobWindow::RenderContent(const WindowContext &par_Context)
             {
                 const ImVec2 mouse{ImGui::GetIO().MousePos};
                 const double angle{GaugeMouseToAngle(mouse.x - center.x, mouse.y - center.y)};
-                m_value = GaugeAngleToValue(angle, minValue, maxValue, m_style);
-                m_variable.WriteValue(m_value);
+                // Overwind freeze (mirrors Qt): while the cursor is inside the bottom dead
+                // sector, hold the last in-scale value instead of snapping min<->max and
+                // writing that glitch to the setpoint signal.
+                if (GaugeAngleIsInScale(angle, m_style))
+                {
+                    m_value = GaugeAngleToValue(angle, minValue, maxValue, m_style);
+                    m_variable.WriteValue(m_value);
+                }
             }
             if (ImGui::IsItemDeactivated())
             {
