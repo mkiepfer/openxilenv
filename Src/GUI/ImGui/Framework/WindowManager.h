@@ -64,6 +64,15 @@ public:
     void ReloadFromIni(int par_FileDescriptor);
 
     /**
+     * @brief Applies the ImGui window/dock layout blob read by @ref LoadLayout.
+     * @details LoadLayout runs before the ImGui context exists, so it only stashes the blob;
+     *          this must be called ONCE from the render thread after ImGui::CreateContext (and
+     *          before the first frame) to feed it to ImGui::LoadIniSettingsFromMemory. Restores
+     *          each window's exact position/size/docking. No-op if there is no stored blob.
+     */
+    void ApplyPendingImGuiSettings();
+
+    /**
      * @brief Refreshes cached values of the active sheet's windows at their update rate.
      * @param[in] par_Scheduler Frame update scheduler (already advanced this frame).
      * @param[in] par_Context Per-frame context.
@@ -192,6 +201,7 @@ private:
     std::vector<Sheet> m_sheets{};                                    /*!< Ordered sheets/tabs. */
     int m_activeSheet{0};                                             /*!< Index of the active sheet. */
     int m_pendingSelectSheet{-1};                                     /*!< Sheet the tab bar should switch to. */
+    std::string m_pendingImGuiSettings{}; /*!< ImGui layout blob from LoadLayout, applied post-context. */
 };
 
 } // namespace XilEnvImGui

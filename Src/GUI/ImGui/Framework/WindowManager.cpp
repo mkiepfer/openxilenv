@@ -233,6 +233,28 @@ void WindowManager::LoadLayout(int par_FileDescriptor)
     const int selected{FindSheetIndex(selectedSheet)};
     m_activeSheet = (0 <= selected) ? selected : 0;
     m_pendingSelectSheet = m_activeSheet;
+
+    // Stash the ImGui layout blob (see SaveLayout). It can only be applied once the ImGui context
+    // exists, which is after this runs — ApplyPendingImGuiSettings does that on the render thread.
+    m_pendingImGuiSettings.clear();
+    int imguiType{0};
+    const int needed{IniFileDataBaseReadByteImage("GUI/ImGuiLayout", "ImGuiSettings", &imguiType, nullptr, 0,
+                                                  par_FileDescriptor)};
+    if (0 < needed)
+    {
+        m_pendingImGuiSettings.resize(static_cast<std::size_t>(needed));
+        (void)IniFileDataBaseReadByteImage("GUI/ImGuiLayout", "ImGuiSettings", &imguiType,
+                                           m_pendingImGuiSettings.data(), needed, par_FileDescriptor);
+    }
+}
+
+void WindowManager::ApplyPendingImGuiSettings()
+{
+    if (!m_pendingImGuiSettings.empty())
+    {
+        ImGui::LoadIniSettingsFromMemory(m_pendingImGuiSettings.data(), m_pendingImGuiSettings.size());
+        m_pendingImGuiSettings.clear();
+    }
 }
 
 void WindowManager::ReloadFromIni(int par_FileDescriptor)
@@ -294,6 +316,18 @@ void WindowManager::SaveLayout(int par_FileDescriptor)
             const std::string widgetSection{WidgetSection(sheetWindow.instance->GetName())};
             sheetWindow.instance->WriteConfig(par_FileDescriptor, widgetSection.c_str());
         }
+    }
+
+    // Persist the exact ImGui window/dock layout (positions, sizes, docking, per-sheet dock nodes)
+    // as a blob — the Qt-style WP<n> placement strings above can't drive ImGui docking. Stored as a
+    // byte image so its newlines survive the config round-trip; restored via ApplyPendingImGuiSettings.
+    std::size_t settingsSize{0};
+    const char *settings{ImGui::SaveIniSettingsToMemory(&settingsSize)};
+    if ((nullptr != settings) && (0u < settingsSize))
+    {
+        (void)IniFileDataBaseWriteByteImage("GUI/ImGuiLayout", "ImGuiSettings", 0,
+                                            const_cast<char *>(settings), static_cast<int>(settingsSize),
+                                            par_FileDescriptor);
     }
 }
 

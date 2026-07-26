@@ -521,6 +521,10 @@ int main(int argc, char *argv[])
                 style.Colors[ImGuiCol_WindowBg].w = 1.0f;
             }
 
+            // Now that the ImGui context exists, apply the persisted window/dock layout that
+            // LoadLayout stashed (positions/sizes/docking) before the first frame is drawn.
+            XilEnvImGui::WindowManager::GetInstance().ApplyPendingImGuiSettings();
+
             ImGui_ImplGlfw_InitForOpenGL(window, true);
             ImGui_ImplOpenGL3_Init("#version 330");
             guiActive = true;
