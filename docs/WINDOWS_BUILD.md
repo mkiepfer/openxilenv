@@ -48,24 +48,38 @@ cmake --install .
 ```
 
 ## 5. **(Optional) Deploy Qt DLLs**
+
+Only the legacy Qt front-end (`XilEnvGui.exe`) needs the Qt runtime DLLs:
 ```cmd
 cd %TOOLS_ROOT%\openxilenv
 windeployqt6.exe XilEnvGui.exe
 ```
 
+The primary `XilEnvImGui.exe` uses Dear ImGui / GLFW (Win32 backend, statically
+linked) and does **not** require `windeployqt`. ImGui, ImPlot and GLFW are fetched
+automatically at configure time — no manual install.
+
 ## :white_check_mark: You're Ready to Run OpenXilEnv!
 
-If all steps completed successfully, OpenXilEnv is now ready to run. You can start by:
+If all steps completed successfully, OpenXilEnv is now ready to run. The build
+produces three interchangeable front-ends over the same core:
+`XilEnvImGui` (the **primary** Dear ImGui GUI), `XilEnvGui` (the legacy Qt GUI,
+kept for verification) and `XilEnv` (headless CLI). You can start by:
 
 1. **Launching the GUI**:
 ```cmd
 cd %TOOLS_ROOT%\openxilenv
-XilEnvGui
+XilEnvImGui
 ```
 **OR**
 
 2. **Running an example**:
 ```cmd
 cd %TOOLS_ROOT%\openxilenv
-.\XilEnvGui -ini %SRC_ROOT%\openxilenv\Samples\Configurations\ElectricCarSample.ini
+.\XilEnvImGui -ini %SRC_ROOT%\openxilenv\Samples\Configurations\ElectricCarSample.toml
 ```
+
+> The `-ini` switch also accepts a legacy `.ini` file (read through a fallback
+> parser); the current native format is TOML. Swap `XilEnvImGui` for `XilEnvGui`
+> to run the same configuration in the Qt GUI, or `XilEnv` for the headless
+> variant.

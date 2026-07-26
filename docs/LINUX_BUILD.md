@@ -98,20 +98,28 @@ source ~/.bashrc
 
 ## ✅ You're Ready to Run OpenXilEnv!
 
-If all steps completed successfully, OpenXilEnv is now ready to run. You can start by:
+If all steps completed successfully, OpenXilEnv is now ready to run. The build
+produces three interchangeable front-ends over the same core:
+`XilEnvImGui` (the **primary** Dear ImGui GUI), `XilEnvGui` (the legacy Qt GUI,
+kept for verification) and `XilEnv` (headless CLI). You can start by:
 
 1. **Launching the GUI**:
 ```bash
 cd "$TOOLS_ROOT/openxilenv"
-./XilEnvGui
+./XilEnvImGui
 ```
 **OR**
 
 2. **Running an example**:
 ```bash
 cd "$TOOLS_ROOT/openxilenv"
-./XilEnvGui -ini "$SRC_ROOT/openxilenv/Samples/Configurations/ElectricCarSample.ini"
+./XilEnvImGui -ini "$SRC_ROOT/openxilenv/Samples/Configurations/ElectricCarSample.toml"
 ```
+
+> The `-ini` switch also accepts a legacy `.ini` file (read through a fallback
+> parser); the current native format is TOML. Swap `XilEnvImGui` for `XilEnvGui`
+> to run the same configuration in the Qt GUI, or `XilEnv` for the headless
+> variant.
 
 ## Troubleshooting
 

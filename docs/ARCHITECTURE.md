@@ -1,10 +1,22 @@
 # OpenXilEnv Architecture
 
-This document gives an architectural overview of the two OpenXilEnv executables
-&mdash; **XilEnvGui** (graphical) and **XilEnv** (command line) &mdash; and of the
-software components that make up the repository. It is intended as an entry
-point for developers who want to understand how the many modules under
-[`Src/`](../Src) fit together.
+This document gives an architectural overview of the OpenXilEnv executables and
+of the software components that make up the repository. There are **three GUI
+front-ends** over one shared simulation core:
+
+- **XilEnvImGui** &mdash; the **primary** graphical front-end (Dear ImGui / GLFW).
+- **XilEnvGui** &mdash; the legacy Qt Widgets front-end, retained in parallel for
+  verification.
+- **XilEnv** &mdash; the headless command-line variant (for automation / CI).
+
+All three link the **same** `xilenv_core` static library; only the user-interface
+layer differs. This document is the entry point for developers who want to
+understand how the many modules under [`Src/`](../Src) fit together.
+
+> **Front-end migration:** the GUI is being migrated from Qt Widgets to Dear ImGui.
+> `XilEnvImGui` is a full port (all window types + dialogs, config-interchangeable
+> with the Qt build) and is now the primary GUI; `XilEnvGui` is kept for side-by-side
+> verification until it is retired. See [The GUI/core seam](#the-guicore-seam).
 
 For the end-user view of the SiL/HiL system, see the [Readme](../Readme.md).
 
@@ -12,9 +24,11 @@ For the end-user view of the SiL/HiL system, see the [Readme](../Readme.md).
 
 - [Big picture](#big-picture)
 - [Build outputs](#build-outputs)
+- [The GUI/core seam](#the-guicore-seam)
+- [Component diagram: XilEnvImGui](#component-diagram-xilenvimgui)
 - [Component diagram: XilEnvGui](#component-diagram-xilenvgui)
 - [Component diagram: XilEnv (CLI)](#component-diagram-xilenv-cli)
-- [The two tools compared](#the-two-tools-compared)
+- [The three front-ends compared](#the-three-front-ends-compared)
 - [Shared simulation core](#shared-simulation-core)
 - [Configuration, calibration and symbols](#configuration-calibration-and-symbols)
 - [Bus, protocol and remote components](#bus-protocol-and-remote-components)
@@ -41,10 +55,14 @@ Blackboard every cycle. Processes are either:
   process for memory protection and communicating with XilEnv over an IPC
   channel (named pipe / Unix domain socket / TCP socket).
 
-Both executables are compiled from the **same** set of internal libraries under
-`Src/`. The only substantial difference is the user-interface layer:
-`XilEnvGui` links the Qt GUI (`Src/GUI/Qt`), while `XilEnv` links a set of
-headless console stubs (`Src/GUI/Console`) and is compiled with `NO_GUI`.
+All front-ends are built on top of the **same** `xilenv_core` static library
+(everything under `Src/` except `Src/GUI/*`). The only substantial difference is
+the user-interface layer and its implementation of the GUI/core seam:
+`XilEnvImGui` links the Dear ImGui GUI (`Src/GUI/ImGui`, GLFW + OpenGL3),
+`XilEnvGui` links the Qt GUI (`Src/GUI/Qt`), and `XilEnv` links a set of headless
+console stubs (`Src/GUI/Console`) and is compiled with `NO_GUI`. Four small
+"border" files (`ThrowError.c`, `A2LLink.c`, `StartupInit.c`, `ParseCommandLine.c`)
+are compiled per front-end because they differ under `NO_GUI`.
 
 The following block diagram shows this concept at a glance: the **Scheduler**
 drives simulated time, the **Blackboard** is the central signal bus that
@@ -60,9 +78,9 @@ flowchart LR
         CAL["Calibration tool<br/>(XCP)"]
     end
 
-    subgraph HOST["XilEnv host process — XilEnvGui or XilEnv"]
+    subgraph HOST["XilEnv host process — XilEnvImGui · XilEnvGui · or XilEnv"]
         direction TB
-        UI["User-interface layer<br/>Qt GUI · or · console (NO_GUI)"]
+        UI["User-interface layer<br/>Dear ImGui · Qt · or · console (NO_GUI)"]
         SCHED["Scheduler<br/>fixed-cycle simulated time"]
         BB(["Blackboard<br/>central signal bus"])
         subgraph INT["Internal processes"]
@@ -106,24 +124,120 @@ artifacts (64-bit host unless noted):
 
 | Artifact | Type | Purpose |
 | --- | --- | --- |
-| **XilEnvGui** | executable | Qt-based graphical SiL/HiL environment |
-| **XilEnv** | executable | Headless (CLI) environment for automation |
+| **xilenv_core** | static lib | Shared simulation core (everything under `Src/` except `Src/GUI/*`); linked by every front-end and the unit tests |
+| **XilEnvImGui** | executable | **Primary** Dear ImGui / GLFW graphical SiL/HiL environment |
+| **XilEnvGui** | executable | Legacy Qt-based graphical environment (retained for verification) |
+| **XilEnv** | executable | Headless (CLI) environment for automation (`NO_GUI`) |
+| **xilenv_core_tests** | executable | GoogleTest / CTest unit tests for the C core |
 | **XilEnvRpc**`.dll`/`.so` | shared lib | Remote-control API for external clients (Python/C) |
 | **XilEnvExtProc64/32**`.dll`/`.so` | shared lib | Interface loaded by the software-under-test |
 | **LinuxRemoteMasterCore**`.so` | shared lib | Real-time HiL core (Linux + RT-Preempt) |
 | **LinuxRemoteMaster.Out** | executable | Standalone HiL real-time master |
 | **RemoteStartServer** | executable | Launches processes remotely on the HiL PC (Linux) |
 
-The examples under [`Samples/`](../Samples) and the tools under
-[`Tools/`](../Tools) are also built when enabled.
+`XilEnvImGui`, `XilEnvGui` and `XilEnv` are three thin front-ends over the same
+`xilenv_core` library; the core is compiled **once** and reused. The examples
+under [`Samples/`](../Samples) and the tools under [`Tools/`](../Tools) are also
+built when enabled.
+
+## The GUI/core seam
+
+The boundary between the simulation core and any front-end is a **C ABI**, not a
+C++ interface: the header
+[`Src/GUI/Qt/MainWinowSyncWithOtherThreads.h`](../Src/GUI/Qt/MainWinowSyncWithOtherThreads.h)
+declares ~79 `…FromOtherThread()` functions (open/close windows, sheet
+management, progress bars, script dialogs, scheduler state). The **core calls
+these**; the front-end processes them on its own UI thread and replies with a
+matching `…Ack()`. Blocking calls suspend the calling (scheduler/RPC) thread on a
+per-thread wait slot until the UI thread acknowledges.
+
+There are **three independent implementations of the same header**, one per
+front-end — the core never changes:
+
+| Front-end | Implementation | Mechanism |
+| --- | --- | --- |
+| **XilEnvGui** (Qt) | `Src/GUI/Qt/…` | Posts a Qt signal, blocks on a `QWaitCondition`; the GUI thread runs the slot and wakes the caller. |
+| **XilEnvImGui** (ImGui) | `Src/GUI/ImGui/ImGuiSyncWithOtherThreads.cpp` | Pushes a tagged command struct onto a thread-safe queue; the render thread drains it at frame start and calls `…Ack()`. Same blocking/wake semantics. |
+| **XilEnv** (console) | `Src/GUI/Console/…` (`NO_GUI`) | No-op stubs that acknowledge immediately. |
+
+Because the seam is identical for all three, the core is oblivious to which GUI
+(if any) is attached. This is what makes the Qt→ImGui migration a drop-in
+replacement of one library rather than a change to the simulation engine.
+
+## Component diagram: XilEnvImGui
+
+`XilEnvImGui` is the **primary** interactive front-end
+([`Src/GUI/ImGui`](../Src/GUI/ImGui)). It is an *immediate-mode* GUI built on
+**Dear ImGui** (docking branch) with a **GLFW + OpenGL3** backend and **ImPlot**
+for graphs. Unlike the Qt build there is no retained widget tree and no
+signal/slot data path: every visible window reads its signals **directly from the
+Blackboard once per frame** (via cached VIDs), and a lightweight
+`UpdateScheduler` reproduces the old Fast/Medium/Slow timer cadence by calling
+each window's `OnUpdateTick()` at the right rate.
+
+The GUI runs on the main (render) thread; the scheduler and RPC server run on
+their own threads and reach the GUI only through the command-queue
+implementation of the sync ABI (see [The GUI/core seam](#the-guicore-seam)).
+
+The framework layer under [`Src/GUI/ImGui/Framework`](../Src/GUI/ImGui/Framework)
+is a small set of singletons: the **WindowManager** owns the docked *sheets* /
+dockspace, the name→instance map (preserving the `OpenWindowByName` contract) and
+layout persistence; the **DialogManager** family renders the ~80 modal/non-modal
+dialogs as data-driven forms (`FormField` / `RenderForm`); and the
+**A2LCalBridge** marshals asynchronous A2L-link callbacks onto the render thread.
+Window types implement `IWindowType` (metadata + factory) and `IWindowInstance`
+(`RenderContent` / `OnUpdateTick` / config I/O / drop handling) and are registered
+in the `WindowTypeRegistry`.
+
+```mermaid
+flowchart TB
+    subgraph GUI["Dear ImGui GUI layer — Src/GUI/ImGui (XilEnvImGui only)"]
+        MAIN["Main / render loop<br/>GLFW window · OpenGL3 · ImGui docking"]
+        WM["WindowManager<br/>sheets · dockspace · name→instance map<br/>layout persistence"]
+        REG["WindowTypeRegistry<br/>IWindowType / IWindowInstance"]
+        WID["Window types (15)<br/>Text · Slider · Enum · Bargraph · Lamps<br/>Knob · Tacho · VariableList · Oscilloscope (ImPlot)<br/>CanMessage · A2LCalSingle · CalibrationTree<br/>A2LCalMap · UserDraw · UserControl"]
+        DLG["DialogManagers<br/>Settings · BusConfig · Control · Conversion<br/>Blackboard · ImportExport · Debug · CanConfigTree<br/>+ FormField / RenderForm"]
+        SCHEDU["UpdateScheduler<br/>Fast / Medium / Slow OnUpdateTick"]
+        A2LB["A2LCalBridge<br/>async A2L-link → render thread"]
+        SEAM["Command-queue seam<br/>ImGuiSyncWithOtherThreads"]
+    end
+
+    subgraph CORE["Shared simulation core (xilenv_core)"]
+        SCHED["Scheduler<br/>time base · process loop · barriers"]
+        BB["Blackboard<br/>central signal database"]
+        A2L["A2lParser + A2L link"]
+        RPCS["RpcInterface (server side)"]
+    end
+
+    THIRD["third_party<br/>imgui · implot · glfw"]
+
+    MAIN --> WM & SCHEDU
+    WM --> REG --> WID
+    MAIN --> DLG
+    WID -->|"read/write per frame (cached VIDs)"| BB
+    SCHEDU -->|"OnUpdateTick"| WID
+    WID --> A2LB --> A2L
+    DLG --> A2LB
+    MAIN -. "links" .-> THIRD
+
+    SCHED -->|"…FromOtherThread()"| SEAM
+    RPCS -->|"…FromOtherThread()"| SEAM
+    SEAM -->|"drained at frame start · …Ack()"| MAIN
+    SCHED <--> BB
+```
+
+*Caption: XilEnvImGui component view. The GUI reads the Blackboard directly each
+frame (no observer), and the core reaches the GUI only through the command-queue
+seam — the exact same ABI the Qt build implements with signals/slots.*
 
 ## Component diagram: XilEnvGui
 
-`XilEnvGui` is the interactive tool. The Qt GUI runs its own event loop on the
-main thread; the scheduler and the RPC server run on separate threads. All
-cross-thread requests into the GUI are marshalled through a blocking
-signal/acknowledge bridge (`MainWinowSyncWithOtherThreads`), and Blackboard
-value changes are pushed to widgets through the `BlackboardObserver`.
+`XilEnvGui` is the legacy Qt front-end, retained in parallel for verification.
+The Qt GUI runs its own event loop on the main thread; the scheduler and the RPC
+server run on separate threads. All cross-thread requests into the GUI are
+marshalled through a blocking signal/acknowledge bridge
+(`MainWinowSyncWithOtherThreads`), and Blackboard value changes are pushed to
+widgets through the `BlackboardObserver`.
 
 ```mermaid
 flowchart TB
@@ -272,23 +386,26 @@ flowchart TB
     SCHED --> RMC
 ```
 
-## The two tools compared
+## The three front-ends compared
 
-| Aspect | **XilEnvGui** | **XilEnv** |
-| --- | --- | --- |
-| UI layer | `Src/GUI/Qt` (Qt Widgets, optional Qt Svg) | `Src/GUI/Console` (headless stubs) |
-| Compile flag | &mdash; | `NO_GUI` |
-| Main loop | Qt event loop (`QApplication::exec`) | Blocks on a condition variable until termination |
-| Entry point | `Src/GUI/Qt/Main.cpp` | `Src/GUI/Console/Main.cpp` |
-| Typical use | Interactive operation, calibration, visualization | Automation, CI, unattended test runs |
-| Simulation core | **identical** | **identical** |
+| Aspect | **XilEnvImGui** | **XilEnvGui** | **XilEnv** |
+| --- | --- | --- | --- |
+| Status | **Primary** GUI | Legacy (kept for verification) | Headless variant |
+| UI layer | `Src/GUI/ImGui` (Dear ImGui, GLFW + OpenGL3, ImPlot) | `Src/GUI/Qt` (Qt Widgets, optional Qt Svg) | `Src/GUI/Console` (headless stubs) |
+| Compile flag | &mdash; | &mdash; | `NO_GUI` |
+| Sync-ABI impl | Command queue (`ImGuiSyncWithOtherThreads`) | Qt signal/slot + `QWaitCondition` | No-op stubs |
+| Live-data path | Direct Blackboard read per frame (immediate mode) | `BlackboardObserver` → widget push | &mdash; |
+| Main loop | GLFW render loop (`glfwPollEvents` + draw) | Qt event loop (`QApplication::exec`) | Blocks on a condition variable until termination |
+| Entry point | `Src/GUI/ImGui/Main.cpp` | `Src/GUI/Qt/Main.cpp` | `Src/GUI/Console/Main.cpp` |
+| Typical use | Interactive operation, calibration, visualization | Side-by-side verification against the ImGui build | Automation, CI, unattended test runs |
+| Simulation core | **identical** (`xilenv_core`) | **identical** (`xilenv_core`) | **identical** (`xilenv_core`) |
 
-Both start the core the same way: `StartupInit()` boots the INI database,
+All three start the core the same way: `StartupInit()` boots the config database,
 Blackboard, A2L link thread and the (initially stopped) schedulers;
 `SchedulersStartingShot()` releases the scheduler threads; and
-`StartRemoteProcedureCallThread()` starts the RPC server. Because the console
-build exposes the *same* C entry points as the Qt build (just as no-ops or
-text output), the entire core links and runs unchanged in both.
+`StartRemoteProcedureCallThread()` starts the RPC server. Because every front-end
+exposes the *same* C entry points (real GUI, or no-ops / text output), the entire
+core links and runs unchanged in all three.
 
 ## Shared simulation core
 
@@ -329,10 +446,24 @@ These modules form the runtime that both executables share.
 ## Configuration, calibration and symbols
 
 - **IniFileDataBase** ([`Src/IniFileDataBase`](../Src/IniFileDataBase)) &ndash;
-  an in-memory database of `.ini`-style configuration files with typed
-  accessors and thread-safe access. It is the persistence layer for the whole
-  application configuration and is a leaf dependency of the calibration/symbol
-  modules.
+  an in-memory, section/entry configuration database with typed accessors and
+  thread-safe access, exposed through a stable C façade (`IniDataBase.h`, ~40
+  functions used by 70+ callers). It is the persistence layer for the whole
+  application configuration and a leaf dependency of the calibration/symbol
+  modules. The on-disk format is now **TOML** (via toml++) behind the unchanged
+  façade — a section becomes a TOML table and an entry a key; binary blobs
+  (`…ReadByteImage`/`…WriteByteImage`) are hex-encoded. Legacy `.ini` files are
+  still read through a fallback parser, and an `ini`→TOML converter tool is
+  provided. Configuration is **split into two files**:
+  - `<name>.toml` &ndash; the **engine config** (models, processes, scheduler,
+    bus setup; the `s_main_ini_val` values in `Src/Global/MainValues.h`), shared
+    by *all* executables.
+  - `<name>.layout.toml` &ndash; the **GUI layout** (sheets, window positions,
+    docking blob), written only by the graphical front-ends.
+
+  The two are routed through the same open descriptor by section (`RouteDescriptorBySection`);
+  `StartupInit()` derives the layout path from the engine path. `XilEnv` (headless)
+  only ever touches the engine file.
 
 - **DebugInfos** ([`Src/DebugInfos`](../Src/DebugInfos)) &ndash; reads debug
   information from the software-under-test (**DWARF** for GCC/ELF, **PDB** for
@@ -381,7 +512,7 @@ with both `A2lParser` and `DebugInfos` reading/writing the `Blackboard`.
 
 ## Automation and data I/O
 
-Both executables can be driven and instrumented without a user present:
+Every executable can be driven and instrumented without a user present:
 
 - **Script** ([`Src/Script`](../Src/Script)) &ndash; the built-in `.sct`
   automation interpreter (parser + VM, ~150 commands, HTML report output). Runs
@@ -453,6 +584,12 @@ see [Setting up an External Process](EXTERNAL_PROCESS_SETUP.md).
 - **Samples** ([`Samples/`](../Samples)) &ndash; example external processes and
   models, including optional Esmini/OpenSCENARIO examples.
 
-- **Tests** ([`test/functional`](../test/functional)) &ndash; pytest-based
-  functional tests that exercise a real OpenXilEnv installation through the
-  Python API. See the [Readme](../Readme.md#test) for how to run them.
+- **Tests** &ndash; two complementary layers:
+  - **C-core unit tests** ([`test/unit`](../test/unit)) &ndash; GoogleTest /
+    CTest (`xilenv_core_tests`) linked against `xilenv_core`; characterization
+    and contract tests for the Blackboard, the ini/TOML façade, and the
+    equation / A2L / CAN / S19 / ramp helpers. Run with `ctest` from the build
+    directory.
+  - **Functional tests** ([`test/functional`](../test/functional)) &ndash;
+    pytest-based tests that exercise a real OpenXilEnv installation through the
+    Python API. See the [Readme](../Readme.md#test) for how to run them.

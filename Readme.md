@@ -13,9 +13,15 @@ Communication between the software under test, models, and XilEnv is done via so
 
 ![XilEnv SiL system](OpenXilEnv_Sil.png)
 
-**XilEnvGui** provides a configurable graphical user interface based on Qt. It includes display/change widgets, oscilloscopes, calibration tools, sliders, knobs, and other interaction elements.
+OpenXilEnv ships **three interchangeable front-ends** over the same simulation core:
+
+**XilEnvImGui** is the **primary** graphical user interface, built on Dear ImGui (GLFW + OpenGL). It includes display/change widgets, oscilloscopes, calibration tools, sliders, knobs, and other interaction elements, with a dockable window/workspace layout.
+
+**XilEnvGui** is the legacy Qt-based GUI. It offers the same widget set and is retained in parallel for side-by-side verification during the ongoing Qt→ImGui migration.
 
 **XilEnv** (CLI) has no graphical user interface and can be used for automation without user interaction.
+
+All three share the `xilenv_core` library and read the same configuration files, so a project can be opened in any of them.
 
 Main features:
 - Supports current GCC compilers with DWARF debug information. Visual Studio compiler is supported but without debug information
@@ -43,13 +49,13 @@ An example can be found in `Samples/ExternalProcesses/ExtProc_Simple`.
 
 ## Architecture
 
-For an overview of the software components and how the **XilEnvGui** and **XilEnv** executables are built up from the modules under `Src/`, including component diagrams, see the [Architecture documentation](docs/ARCHITECTURE.md).
+For an overview of the software components and how the **XilEnvImGui**, **XilEnvGui** and **XilEnv** executables are built up from the shared `xilenv_core` library and the modules under `Src/`, including component diagrams and the GUI/core seam, see the [Architecture documentation](docs/ARCHITECTURE.md).
 
 ## Installation
 
-The build installs **XilEnv** (CLI) and **XilEnvGui** together with all
-associated shared libraries (`XilEnvRpc`, `XilEnvExtProc64`, …), the external
-process headers and the user guide into a single directory. The target
+The build installs **XilEnvImGui**, **XilEnvGui** and **XilEnv** (CLI) together
+with all associated shared libraries (`XilEnvRpc`, `XilEnvExtProc64`, …), the
+external process headers and the user guide into a single directory. The target
 directory is controlled by `CMAKE_INSTALL_PREFIX`, so you can install
 everything into a local, user-writable location such as `~/.local` without root
 privileges.
@@ -65,13 +71,13 @@ cmake -G Ninja -DCMAKE_INSTALL_PREFIX="$HOME/.local/openxilenv" -S . -B build
 # Build
 cmake --build build --parallel $(nproc)
 
-# Install XilEnv, XilEnvGui and all shared libraries into the prefix
+# Install XilEnvImGui, XilEnvGui, XilEnv and all shared libraries into the prefix
 cmake --install build
 ```
 
 The executables and shared libraries are placed flat inside the prefix
-(e.g. `~/.local/openxilenv/XilEnvGui`, `~/.local/openxilenv/XilEnv`,
-`~/.local/openxilenv/XilEnvRpc.so`, …).
+(e.g. `~/.local/openxilenv/XilEnvImGui`, `~/.local/openxilenv/XilEnvGui`,
+`~/.local/openxilenv/XilEnv`, `~/.local/openxilenv/XilEnvRpc.so`, …).
 
 To run the installed binaries from anywhere, add the install directory to your
 `PATH` and `LD_LIBRARY_PATH`:
@@ -131,6 +137,15 @@ The [functional tests](test/functional/) of openXilEnv are implemented in [pytes
 For a detailed description take a look at the [openXilenv python API refrence](docs/PYTHON_API_REFERENCE.md).
 
 ## Test
+
+OpenXilEnv has two test layers:
+
+- **C-core unit tests** (GoogleTest / CTest, target `xilenv_core_tests`) under
+  [`test/unit/`](test/unit/) cover the shared core (Blackboard, the ini/TOML
+  configuration façade, and equation / A2L / CAN helpers). Run them from the
+  build directory with `ctest --output-on-failure`.
+- **Functional tests** (pytest) validate a full **openXilEnv** installation
+  through the Python API.
 
 OpenXilEnv provides functionality tests, that validate the **openXilEnv** installation using pytest.
 

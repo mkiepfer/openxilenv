@@ -53,8 +53,16 @@ sudo apt install -y build-essential cmake ninja-build python3 \
     libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev \
     libxcb-xkb-dev libx11-xcb-dev libfontconfig1-dev \
     libfreetype6-dev libharfbuzz-dev libpng-dev libjpeg-dev \
+    libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
     git wget
 ```
+
+> **GLFW / Dear ImGui front-end:** the last line
+> (`libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`, together
+> with the OpenGL headers `libgl1-mesa-dev`) provides the X11 development headers
+> that GLFW needs to build the **XilEnvImGui** front-end. Without them GLFW falls
+> back to its null backend and the ImGui window will not open. ImGui, ImPlot and
+> GLFW themselves are fetched automatically at configure time — no manual install.
 
 Verify versions:
 ```bash
