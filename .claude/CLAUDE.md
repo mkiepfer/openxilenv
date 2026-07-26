@@ -6,10 +6,15 @@ einem deterministischen, fest getakteten Zeitscheduler (1 ns Auflösung), tausch
 CAN(-FD)-Verkehr über Sockets/Named Pipes aus und bietet Recording, Stimulation, Kalibrierung (A2L/XCP),
 Scripting und RPC-Automatisierung.
 
-> **Aktuelles Vorhaben:** Migration des Frontends von **Qt Widgets → Dear ImGui** und Aufteilung des
-> monolithischen Builds in echte Build-Einheiten. Der ausführliche Plan liegt unter
-> `~/.claude/plans/die-grundstruktur-von-xilenvgui-linear-llama.md`. Diese Datei ist die kompakte
-> Ground-Truth-Referenz dazu; Detail-Skills siehe unten.
+> **Stand des Vorhabens (Migration Qt Widgets → Dear ImGui):** **im Wesentlichen abgeschlossen** —
+> Plan-Schritte P0–M8 durch. `xilenv_core`-Library, TOML-Config + Engine/Layout-Split, alle **15
+> Fenstertypen** und der **komplette Dialog-Satz** sind nach `Src/GUI/ImGui` portiert, parity-reviewt
+> und nachgebessert; **XilEnvImGui** ist die primäre GUI und wird installiert. **Qt (`XilEnvGui`)
+> bleiben vorerst bewusst erhalten** (paralleler Verifikations-Build) — die eigentliche Qt-Entfernung
+> (Löschen `Src/GUI/Qt`, `find_package(Qt)`/AUTOMOC entfernen, `XilEnvGui` ausmustern) ist der letzte,
+> noch offene Schritt. Offener Backlog: kleinere Feature-Rückstellungen (Hotkey-Dispatch, „Load
+> values"/Config-Reload [core-gated], diverse Widget-Kosmetik) — siehe Memory `imgui-migration-status`.
+> Plan: `~/.claude/plans/die-grundstruktur-von-xilenvgui-linear-llama.md`. Detail-Skills siehe unten.
 
 ## Coding-Standards
 
