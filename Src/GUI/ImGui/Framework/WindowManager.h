@@ -64,6 +64,15 @@ public:
     void ReloadFromIni(int par_FileDescriptor);
 
     /**
+     * @brief Destroys every window instance now, while the C core is still alive.
+     * @details Must be called from main() BEFORE the core is torn down (StopCore). Window
+     *          destructors call into the core (remove_bbvari, DeleteDataFromLinkChannel, my_free);
+     *          relying on static destruction of the singleton would run them AFTER StopCore() —
+     *          a use-after-free segfault on exit. Idempotent.
+     */
+    void Shutdown();
+
+    /**
      * @brief Applies the ImGui window/dock layout blob read by @ref LoadLayout.
      * @details LoadLayout runs before the ImGui context exists, so it only stashes the blob;
      *          this must be called ONCE from the render thread after ImGui::CreateContext (and

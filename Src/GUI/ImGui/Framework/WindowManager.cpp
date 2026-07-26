@@ -251,6 +251,15 @@ void WindowManager::LoadLayout(int par_FileDescriptor)
     }
 }
 
+void WindowManager::Shutdown()
+{
+    // Destroy the window instances now (each dtor calls remove_bbvari / DeleteDataFromLinkChannel /
+    // my_free) while the core is still up. m_windows owns them; clearing it runs the destructors.
+    m_windowsByName.clear();
+    m_sheets.clear();
+    m_windows.clear();
+}
+
 void WindowManager::ApplyPendingImGuiSettings()
 {
     if (!m_pendingImGuiSettings.empty())
@@ -324,6 +333,12 @@ void WindowManager::SaveLayout(int par_FileDescriptor)
     // Persist the exact ImGui window/dock layout (positions, sizes, docking, per-sheet dock nodes)
     // as a blob — the Qt-style WP<n> placement strings above can't drive ImGui docking. Stored as a
     // byte image so its newlines survive the config round-trip; restored via ApplyPendingImGuiSettings.
+    // Guard on a live context: SaveIniSettingsToMemory dereferences GImGui, so calling it after
+    // ImGui::DestroyContext (exit) or in the windowless build would crash.
+    if (nullptr == ImGui::GetCurrentContext())
+    {
+        return;
+    }
     std::size_t settingsSize{0};
     const char *settings{ImGui::SaveIniSettingsToMemory(&settingsSize)};
     if ((nullptr != settings) && (0u < settingsSize))

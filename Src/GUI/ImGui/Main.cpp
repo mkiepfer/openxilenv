@@ -583,6 +583,14 @@ int main(int argc, char *argv[])
             glfwSwapBuffers(window);
         }
 
+        // Persist the layout WHILE the ImGui context is still alive: SaveLayout serializes the
+        // window/dock arrangement via SaveIniSettingsToMemory, which dereferences the context —
+        // doing it after ImGui::DestroyContext (below) segfaults. Also drains any queued seam
+        // commands so no thread stays blocked and still-queued INDEX_DATA_BLOCKs are freed here.
+        DrainGuiCommandQueueFromOtherThread();
+        XilEnvImGui::A2LCalBridge::GetInstance().Drain();
+        XilEnvImGui::WindowManager::GetInstance().SaveLayout(GetMainFileDescriptor());
+
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImPlot::DestroyContext();
@@ -604,16 +612,18 @@ int main(int argc, char *argv[])
             XilEnvImGui::WindowManager::GetInstance().Update(updateScheduler, windowContext);
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
+
+        // No ImGui context in the windowless build: persist the window sections only
+        // (SaveLayout guards the layout blob on a live context).
+        DrainGuiCommandQueueFromOtherThread();
+        XilEnvImGui::A2LCalBridge::GetInstance().Drain();
+        XilEnvImGui::WindowManager::GetInstance().SaveLayout(GetMainFileDescriptor());
     }
 
-    // Drain anything queued during teardown so no thread stays blocked and any
-    // still-queued INDEX_DATA_BLOCKs are freed on the render thread.
-    DrainGuiCommandQueueFromOtherThread();
-    XilEnvImGui::A2LCalBridge::GetInstance().Drain();
-
-    // Persist the sheets/windows back into the ini database (routed to the
-    // layout descriptor); the core flushes it to disk on exit like the Qt build.
-    XilEnvImGui::WindowManager::GetInstance().SaveLayout(GetMainFileDescriptor());
+    // Destroy all window instances (their dtors call remove_bbvari / DeleteDataFromLinkChannel /
+    // my_free) while the core is still alive — otherwise static destruction runs them after
+    // StopCore() and segfaults on exit.
+    XilEnvImGui::WindowManager::GetInstance().Shutdown();
 
     StopCore();
 
