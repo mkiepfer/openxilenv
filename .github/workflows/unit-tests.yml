@@ -1,0 +1,72 @@
+# Dedicated C-core unit-test pipeline (GoogleTest + CTest).
+#
+# Fast red/green feedback on the core (scheduler, blackboard, CAN, A2L, ini, ...) — separate
+# from the heavy full build-and-package job in build.yml. It builds ONLY the xilenv_core_tests
+# target (no GUI binaries, no examples, no install, no functional pytest) and runs CTest.
+#
+# @author Martin Kiepfer martin.kiepfer@karcher.com
+# @copyright Alfred Kaercher SE & Co. KG
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main, dev, "feature/**", "ci/**" ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:  # Allow manual triggers
+
+# Cancel superseded runs on the same ref to save runner time.
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: C-core unit tests (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build gcc g++
+
+      # The project's top-level configure step calls find_package(Qt) for the legacy XilEnvGui,
+      # so Qt must be present to configure. The unit-test target itself links only xilenv_core
+      # (built NO_GUI) and no GUI is built (see the target flags below). A future
+      # XILENV_BUILD_QT_GUI option would let this job drop the Qt install entirely.
+      - name: Install Qt 6.4.2 (configure dependency)
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install aqtinstall
+          aqt install-qt linux desktop 6.4.2 gcc_64 -O "$GITHUB_WORKSPACE/Qt"
+          echo "$GITHUB_WORKSPACE/Qt/6.4.2/gcc_64/bin" >> "$GITHUB_PATH"
+          echo "Qt6_DIR=$GITHUB_WORKSPACE/Qt/6.4.2/gcc_64" >> "$GITHUB_ENV"
+
+      # Configure with the GUIs and examples OFF: only xilenv_core + GoogleTest + the tests are
+      # needed. FetchContent still pulls GoogleTest (and toml++ for the ini backend).
+      - name: Configure (tests only)
+        run: >
+          cmake -G Ninja -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DXILENV_BUILD_TESTS=ON
+          -DBUILD_EXAMPLES=OFF
+          -DXILENV_BUILD_IMGUI_GUI=OFF
+
+      - name: Build the unit-test target
+        run: cmake --build build --target xilenv_core_tests --parallel
+
+      - name: Run unit tests (CTest)
+        working-directory: build
+        run: ctest --output-on-failure --output-junit ctest-results.xml
+
+      - name: Upload test results (JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: build/ctest-results.xml
+          if-no-files-found: ignore
