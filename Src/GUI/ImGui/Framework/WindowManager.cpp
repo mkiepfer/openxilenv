@@ -236,15 +236,18 @@ void WindowManager::LoadLayout(int par_FileDescriptor)
 
     // Stash the ImGui layout blob (see SaveLayout). It can only be applied once the ImGui context
     // exists, which is after this runs — ApplyPendingImGuiSettings does that on the render thread.
+    // NB: use the single-call ALLOCATE mode (buffer-size 0 + non-null out-pointer). The two-call
+    // "query size then read" pattern must NOT be used here: IniFileDataBaseReadByteImage leaks the
+    // ini critical section on its size-query path, so the second call would deadlock the startup.
     m_pendingImGuiSettings.clear();
     int imguiType{0};
-    const int needed{IniFileDataBaseReadByteImage("GUI/ImGuiLayout", "ImGuiSettings", &imguiType, nullptr, 0,
-                                                  par_FileDescriptor)};
-    if (0 < needed)
+    void *imguiBuffer{nullptr};
+    const int size{IniFileDataBaseReadByteImage("GUI/ImGuiLayout", "ImGuiSettings", &imguiType, &imguiBuffer, 0,
+                                                par_FileDescriptor)};
+    if ((0 < size) && (nullptr != imguiBuffer))
     {
-        m_pendingImGuiSettings.resize(static_cast<std::size_t>(needed));
-        (void)IniFileDataBaseReadByteImage("GUI/ImGuiLayout", "ImGuiSettings", &imguiType,
-                                           m_pendingImGuiSettings.data(), needed, par_FileDescriptor);
+        m_pendingImGuiSettings.assign(static_cast<const char *>(imguiBuffer), static_cast<std::size_t>(size));
+        IniFileDataBaseFreeByteImageBuffer(imguiBuffer);
     }
 }
 
