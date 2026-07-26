@@ -345,79 +345,91 @@ void WindowManager::Render(const WindowContext &par_Context)
 {
     EnsureAtLeastOneSheet();
 
-    ImGuiWindowFlags hostFlags{ImGuiWindowFlags_NoCollapse};
-    if (ImGui::Begin("Workspaces", nullptr, hostFlags))
+    // The sheet tab bar + dock space live in a single host window pinned to the main viewport's
+    // work area (minus the status bar at the bottom). NoDocking + NoSavedSettings + fixed pos/size
+    // keep it from ever becoming a separate OS window (multi-viewport) or collapsing to a few
+    // pixels, so the docked sheet windows are always visible. This replaces the former floating
+    // "Workspaces" window AND the redundant DockSpaceOverViewport in Main.cpp.
+    const ImGuiViewport *viewport{ImGui::GetMainViewport()};
+    const float statusHeight{ImGui::GetFrameHeight()}; // kept in sync with the status bar in Main.cpp
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - statusHeight));
+    ImGui::SetNextWindowViewport(viewport->ID);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    const ImGuiWindowFlags hostFlags{ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                     ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
+                                     ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings};
+    ImGui::Begin("Workspaces", nullptr, hostFlags);
+    ImGui::PopStyleVar(3);
+
+    if (ImGui::BeginTabBar("##SheetTabs", ImGuiTabBarFlags_AutoSelectNewTabs))
     {
-        if (ImGui::BeginTabBar("##SheetTabs", ImGuiTabBarFlags_AutoSelectNewTabs))
+        for (int i{0}; i < static_cast<int>(m_sheets.size()); ++i)
         {
-            for (int i{0}; i < static_cast<int>(m_sheets.size()); ++i)
+            ImGuiTabItemFlags itemFlags{ImGuiTabItemFlags_None};
+            if (m_pendingSelectSheet == i)
             {
-                ImGuiTabItemFlags itemFlags{ImGuiTabItemFlags_None};
-                if (m_pendingSelectSheet == i)
-                {
-                    itemFlags |= ImGuiTabItemFlags_SetSelected;
-                }
-                const std::string label{m_sheets[static_cast<size_t>(i)].name + "###Sheet" + std::to_string(i)};
-                if (ImGui::BeginTabItem(label.c_str(), nullptr, itemFlags))
-                {
-                    m_activeSheet = i;
-                    ImGui::EndTabItem();
-                }
+                itemFlags |= ImGuiTabItemFlags_SetSelected;
             }
-            ImGui::EndTabBar();
+            const std::string label{m_sheets[static_cast<size_t>(i)].name + "###Sheet" + std::to_string(i)};
+            if (ImGui::BeginTabItem(label.c_str(), nullptr, itemFlags))
+            {
+                m_activeSheet = i;
+                ImGui::EndTabItem();
+            }
         }
-        m_pendingSelectSheet = -1;
+        ImGui::EndTabBar();
+    }
+    m_pendingSelectSheet = -1;
 
-        // One dock space per sheet so each tab keeps an independent layout.
-        const std::string dockName{"##Dock" + std::to_string(m_activeSheet)};
-        const ImGuiID dockId{ImGui::GetID(dockName.c_str())};
-        ImGui::DockSpace(dockId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+    // One dock space per sheet so each tab keeps an independent layout.
+    const std::string dockName{"##Dock" + std::to_string(m_activeSheet)};
+    const ImGuiID dockId{ImGui::GetID(dockName.c_str())};
+    ImGui::DockSpace(dockId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
 
+    ImGui::End();
+
+    // Render the active sheet's windows, docked into that sheet's dock space.
+    std::string closeRequest;
+    for (const SheetWindow &sheetWindow : m_sheets[static_cast<size_t>(m_activeSheet)].windows)
+    {
+        IWindowInstance *instance{sheetWindow.instance};
+        const std::string title{instance->GetName() + "###" + instance->GetName()};
+
+        ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
+        bool open{true};
+        if (ImGui::Begin(title.c_str(), &open))
+        {
+            instance->RenderContent(par_Context);
+
+            if (ImGui::BeginPopupContextItem("##WindowCtx"))
+            {
+                if (ImGui::BeginMenu("Settings"))
+                {
+                    instance->RenderSettingsPopup();
+                    ImGui::EndMenu();
+                }
+                if (ImGui::MenuItem("Close window"))
+                {
+                    open = false;
+                }
+                ImGui::EndPopup();
+            }
+        }
         ImGui::End();
 
-        // Render the active sheet's windows, docked into that sheet's dock space.
-        std::string closeRequest;
-        for (const SheetWindow &sheetWindow : m_sheets[static_cast<size_t>(m_activeSheet)].windows)
+        if (!open)
         {
-            IWindowInstance *instance{sheetWindow.instance};
-            const std::string title{instance->GetName() + "###" + instance->GetName()};
-
-            ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
-            bool open{true};
-            if (ImGui::Begin(title.c_str(), &open))
-            {
-                instance->RenderContent(par_Context);
-
-                if (ImGui::BeginPopupContextItem("##WindowCtx"))
-                {
-                    if (ImGui::BeginMenu("Settings"))
-                    {
-                        instance->RenderSettingsPopup();
-                        ImGui::EndMenu();
-                    }
-                    if (ImGui::MenuItem("Close window"))
-                    {
-                        open = false;
-                    }
-                    ImGui::EndPopup();
-                }
-            }
-            ImGui::End();
-
-            if (!open)
-            {
-                closeRequest = instance->GetName();
-            }
-        }
-
-        if (!closeRequest.empty())
-        {
-            DestroyWindow(closeRequest);
+            closeRequest = instance->GetName();
         }
     }
-    else
+
+    if (!closeRequest.empty())
     {
-        ImGui::End();
+        DestroyWindow(closeRequest);
     }
 }
 

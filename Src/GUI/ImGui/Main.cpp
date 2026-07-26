@@ -67,7 +67,8 @@ void GlfwErrorCallback(int par_Error, const char *par_Description)
  */
 void RenderMainFrame(const XilEnvImGui::WindowContext &par_Context)
 {
-    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+    // The sheet dock-space host (WindowManager::Render) fills the work area itself; no separate
+    // DockSpaceOverViewport is needed (it would be a redundant second, unused dock space).
 
     if (ImGui::BeginMainMenuBar())
     {
