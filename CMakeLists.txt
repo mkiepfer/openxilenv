@@ -562,6 +562,18 @@ else()
             ARCHIVE DESTINATION .
             PUBLIC_HEADER DESTINATION include
         )
+
+        # New Dear ImGui front-end: install it alongside the legacy Qt XilEnvGui so the new
+        # primary GUI ships. It statically links GLFW/ImGui/ImPlot (FetchContent), so unlike
+        # XilEnvGui it needs no runtime-library deployment step. Qt is retained in parallel for
+        # side-by-side verification (M8 cutover without Qt removal).
+        if(XILENV_BUILD_IMGUI_GUI)
+            install(TARGETS XilEnvImGui
+                RUNTIME DESTINATION .
+                LIBRARY DESTINATION .
+                ARCHIVE DESTINATION .
+            )
+        endif()
     endif()
 
     install(TARGETS ${XilEnvExtProcTargetName}
