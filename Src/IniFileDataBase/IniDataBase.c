@@ -1686,7 +1686,6 @@ int IniFileDataBaseReadByteImage (const char* par_Section, const char* par_Entry
             LineCounter++;
             Text = GetEntry(Section, EntryHelp);
             if (Text == NULL) {
-                INI_LEAVE_CS (&IniDBCriticalSection);
                 Ret = 0;    // First line doesn't exist
                 goto __OUT;
             }
@@ -1759,8 +1758,11 @@ int IniFileDataBaseReadByteImage (const char* par_Section, const char* par_Entry
             }
         }
     }
-    INI_LEAVE_CS (&IniDBCriticalSection);
 __OUT:
+    // Single unlock point: every path reaches __OUT only after INI_ENTER_CS above (the early
+    // nullptr check returns before locking), and the goto __OUT paths used to leak the (non-
+    // recursive) critical section on size-query/error, deadlocking the next ini call on the thread.
+    INI_LEAVE_CS (&IniDBCriticalSection);
     return (DWORD)Ret;
 }
 

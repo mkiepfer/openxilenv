@@ -131,6 +131,44 @@ TEST_F(IniDataBaseTest, WriteReadByteImage_RoundTrip_PreservesBytes)
     EXPECT_EQ(0, std::memcmp(pre_image, result_image, sizeof(pre_image)));
 }
 
+// Regression: the two-call "query size, then read into buffer" ReadByteImage pattern used to
+// leak the (non-recursive) ini critical section on its size-query path (par_BufferSize<=0 &&
+// ret_Buffer==NULL -> goto __OUT without INI_LEAVE_CS). The follow-up read then re-entered the
+// CS and deadlocked. This test drives that exact sequence plus a trailing ini call; before the
+// fix it hangs (CTest timeout), after the fix it round-trips cleanly. Blob is >512 bytes so it
+// spans multiple stored chunks (the ImGui-layout case).
+TEST_F(IniDataBaseTest, ReadByteImage_QuerySizeThenReadThenIniCall_NoCsLeakOrDeadlock)
+{
+    unsigned char pre_image[2000];
+    for (int i = 0; i < static_cast<int>(sizeof(pre_image)); ++i)
+    {
+        pre_image[i] = static_cast<unsigned char>((i * 31 + 7) & 0xFF);
+    }
+    const int pre_type = 5;
+    IniFileDataBaseWriteByteImage("BlobSection", "Blob2", pre_type, pre_image,
+                                  static_cast<int>(sizeof(pre_image)), m_fd);
+
+    // 1) Query needed size (buffer size 0, null buffer) — the path that used to leak the CS.
+    int result_type = -1;
+    const int needed = IniFileDataBaseReadByteImage("BlobSection", "Blob2", &result_type, nullptr, 0, m_fd);
+    ASSERT_EQ(static_cast<int>(sizeof(pre_image)), needed);
+
+    // 2) Read into the sized buffer — re-enters the CS; deadlocked before the fix.
+    unsigned char result_image[2000]{};
+    const int result_len =
+        IniFileDataBaseReadByteImage("BlobSection", "Blob2", &result_type, result_image, needed, m_fd);
+    EXPECT_EQ(static_cast<int>(sizeof(pre_image)), result_len);
+    EXPECT_EQ(pre_type, result_type);
+    EXPECT_EQ(0, std::memcmp(pre_image, result_image, sizeof(pre_image)));
+
+    // 3) A further ini call proves the CS was released (also hangs if the size-query leaked it).
+    IniFileDataBaseWriteString("AfterBlob", "Key", "ok", m_fd);
+    char after_buffer[32]{};
+    IniFileDataBaseReadString("AfterBlob", "Key", "X", after_buffer, static_cast<int>(sizeof(after_buffer)),
+                              m_fd);
+    EXPECT_STREQ("ok", after_buffer);
+}
+
 // Real file persistence round-trip through the TOML backend: write values, save
 // to a file (TOML), close, reopen (parse TOML), read back. This is what actually
 // exercises the toml++ serializer/parser and its quoting — including values that
