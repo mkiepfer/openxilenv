@@ -40,6 +40,7 @@
 #endif
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include "MemZeroAndCopy.h"
 #include "StringMaxChar.h"
@@ -208,6 +209,52 @@ static void FreeAllThreadBuffers(void)
     UnlockMutex();
 }
 
+// Receive timeout for the client socket. Without one, every synchronous call ends in a recv()
+// that waits forever, so a server which stops answering hangs the client instead of failing it.
+// Generous on purpose: the server sends a keep-alive ping about once a second for the whole
+// duration of a long call (see RemoteProcedureWaitForConnection()), so a healthy connection is
+// never silent for anywhere near this long. Only a wedged or vanished peer is.
+#define RPC_CLIENT_RECEIVE_TIMEOUT_MS_DEFAULT   60000
+
+// Override, in milliseconds. 0 restores the unbounded wait, which a front-end that can block on
+// a modal error dialog during an RPC still needs.
+#define RPC_CLIENT_RECEIVE_TIMEOUT_ENV_NAME     "XILENV_RPC_RECEIVE_TIMEOUT_MS"
+
+static int GetReceiveTimeoutMs(void)
+{
+    const char *EnvValue = getenv(RPC_CLIENT_RECEIVE_TIMEOUT_ENV_NAME);
+    if (EnvValue != NULL) {
+        char *EndPtr;
+        long Value = strtol(EnvValue, &EndPtr, 10);
+        if ((EndPtr != EnvValue) && (Value >= 0) && (Value <= INT_MAX)) {
+            return (int)Value;
+        }
+    }
+    return RPC_CLIENT_RECEIVE_TIMEOUT_MS_DEFAULT;
+}
+
+static void SetSocketReceiveTimeout(SOCKET par_Socket)
+{
+    int TimeoutMs = GetReceiveTimeoutMs();
+
+    if (TimeoutMs <= 0) {
+        return;   // explicitly disabled: leave the socket blocking indefinitely
+    }
+#ifdef _WIN32
+    {
+        DWORD Timeout = (DWORD)TimeoutMs;
+        setsockopt(par_Socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&Timeout, sizeof(Timeout));
+    }
+#else
+    {
+        struct timeval Timeout;
+        Timeout.tv_sec = TimeoutMs / 1000;
+        Timeout.tv_usec = (TimeoutMs % 1000) * 1000;
+        setsockopt(par_Socket, SOL_SOCKET, SO_RCVTIMEO, &Timeout, sizeof(Timeout));
+    }
+#endif
+}
+
 
 HANDLE ConnectToRemoteProcedureCallServer(char *par_ServerName, int par_Port)
 {
@@ -264,6 +311,7 @@ HANDLE ConnectToRemoteProcedureCallServer(char *par_ServerName, int par_Port)
     if (Socket == INVALID_SOCKET) {
         return INVALID_HANDLE_VALUE;
     }
+    SetSocketReceiveTimeout(Socket);
     return (HANDLE)Socket;
 }
 
@@ -349,6 +397,7 @@ HANDLE UnixDomainSocketConnectToRemoteProcedureCallServer(const char *par_Server
         Socket = (SOCKET)INVALID_HANDLE_VALUE;
         return INVALID_HANDLE_VALUE;
     }
+    SetSocketReceiveTimeout(Socket);
     return (HANDLE)Socket;
 }
 #endif
@@ -433,8 +482,12 @@ __RETRAY:
                 }
             }
         } else if (ReadBytes == 0) {
-            // can this happen?
+            // The peer closed the connection. Retrying would re-read EOF forever and, with a
+            // partial message already in the buffer, spin at 100% CPU instead of terminating.
+            return -1;
         } else {
+            // Includes an expired SO_RCVTIMEO (EAGAIN/EWOULDBLOCK, WSAETIMEDOUT): the peer has
+            // gone silent, which fails the transaction rather than blocking the caller forever.
             return -1;
         }
     } while (buffer_pos < receive_message_size);
