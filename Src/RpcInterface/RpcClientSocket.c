@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
+#include <string.h>
 
 #include "MemZeroAndCopy.h"
 #include "StringMaxChar.h"
@@ -445,14 +446,69 @@ int SentToRemoteProcedureCallServer (int par_SocketOrNamedPipe, HANDLE par_Socke
     return 0;
 }
 
+static int IsAlivePing (const RPC_API_BASE_MESSAGE_ACK *par_Data)
+{
+    const RPC_API_BASE_MESSAGE *Header = (const RPC_API_BASE_MESSAGE*)par_Data;
+
+    return ((Header->Command == RPC_API_PING_TO_CLINT_CMD) &&
+            (Header->StructSize == (int32_t)sizeof(RPC_API_PING_TO_CLINT_MESSAGE)));
+}
+
+// Answer the ping at the front of the buffer and drop it, moving anything read behind it down.
+// Returns 0, or -1 if the answer could not be sent.
+static int AnswerAlivePing (int par_SocketOrNamedPipe, HANDLE par_Socket,
+                            RPC_API_BASE_MESSAGE_ACK *ret_Data, int *ref_BufferPos)
+{
+    RPC_API_PING_TO_CLINT_MESSAGE_ACK Ack;
+    int PingSize = (int)sizeof(RPC_API_PING_TO_CLINT_MESSAGE);
+
+    MEMSET (&Ack, 0, sizeof(Ack));
+    if (SentToRemoteProcedureCallServer (par_SocketOrNamedPipe, par_Socket, RPC_API_PING_TO_CLINT_CMD,
+                                         (RPC_API_BASE_MESSAGE*)&Ack, sizeof(Ack)) != 0) {
+        return -1;
+    }
+    *ref_BufferPos -= PingSize;
+    if (*ref_BufferPos > 0) {
+        memmove (ret_Data, (char*)ret_Data + PingSize, (size_t)*ref_BufferPos);
+    }
+    return 0;
+}
+
 static int ReceiveFromRemoteProcedureCallServer (int par_SocketOrNamedPipe, HANDLE par_Socket, RPC_API_BASE_MESSAGE_ACK *ret_Data, int par_len)
 {
-    int receive_message_size = 0;
     int buffer_pos = 0;
-    receive_message_size = 0;
-    do {
+
+    for (;;) {
         int ReadBytes;
-__RETRAY:
+        int receive_message_size;
+
+        // Strip any keep-alive pings sitting at the front of the buffer before looking for the
+        // ack. The server can send one at any moment, so it may arrive coalesced with the ack
+        // behind it in a single read; identifying it by how many bytes that read returned only
+        // works while it arrives alone, and mistook the ping for the ack the first time the two
+        // came together, desynchronising the connection for the rest of its life.
+        while (buffer_pos >= (int)sizeof(RPC_API_BASE_MESSAGE)) {
+            if (!IsAlivePing(ret_Data)) {
+                break;
+            }
+            if (AnswerAlivePing (par_SocketOrNamedPipe, par_Socket, ret_Data, &buffer_pos) != 0) {
+                return -1;
+            }
+        }
+
+        if (buffer_pos >= (int)sizeof(uint32_t)) {
+            receive_message_size = (int)*(uint32_t*)ret_Data;
+            if ((receive_message_size < (int)sizeof(RPC_API_BASE_MESSAGE)) ||
+                (receive_message_size > par_len)) {
+                // Not framable against this buffer. Reading on would ask recv() for zero bytes,
+                // which returns 0 forever.
+                return -1;
+            }
+            if (buffer_pos >= receive_message_size) {
+                return receive_message_size;
+            }
+        }
+
 #ifdef _WIN32
         if (par_SocketOrNamedPipe) {
 #endif
@@ -467,20 +523,7 @@ __RETRAY:
         }
 #endif
         if (ReadBytes > 0) {
-            if ((ReadBytes == sizeof(RPC_API_PING_TO_CLINT_MESSAGE)) && (ret_Data->Command == RPC_API_PING_TO_CLINT_CMD)) {
-                // answer to the alive ping
-                RPC_API_PING_TO_CLINT_MESSAGE_ACK Ack;
-                MEMSET (&Ack, 0, sizeof(Ack));
-                if (SentToRemoteProcedureCallServer (par_SocketOrNamedPipe, par_Socket, RPC_API_PING_TO_CLINT_CMD, (RPC_API_BASE_MESSAGE*)&Ack, sizeof(Ack)) != 0) {
-                    return -1;
-                }
-                goto __RETRAY;
-            } else {
-                buffer_pos += ReadBytes;
-                if (receive_message_size == 0) {
-                    receive_message_size = (int)*(uint32_t*)ret_Data;
-                }
-            }
+            buffer_pos += ReadBytes;
         } else if (ReadBytes == 0) {
             // The peer closed the connection. Retrying would re-read EOF forever and, with a
             // partial message already in the buffer, spin at 100% CPU instead of terminating.
@@ -490,8 +533,7 @@ __RETRAY:
             // gone silent, which fails the transaction rather than blocking the caller forever.
             return -1;
         }
-    } while (buffer_pos < receive_message_size);
-    return receive_message_size;
+    }
 }
 
 int RemoteProcedureCallTransact (int par_SocketOrNamedPipe, HANDLE par_Socket, uint32_t par_Command, 
@@ -553,7 +595,20 @@ int ReceiveFromRemoteProcedureCallServerDynBuf (int par_SocketOrNamedPipe, HANDL
     // First read only the header
     do {
         int ReadBytes;
-__RETRAY:
+        // Same framing rule as the fixed-buffer path: a ping may share a read with the header
+        // behind it, so recognise it from what the peer sent and take it out of the buffer.
+        while (buffer_pos >= (int)sizeof(RPC_API_BASE_MESSAGE)) {
+            if (!IsAlivePing((RPC_API_BASE_MESSAGE_ACK*)dyn_buffer)) {
+                break;
+            }
+            if (AnswerAlivePing (par_SocketOrNamedPipe, par_Socket,
+                                 (RPC_API_BASE_MESSAGE_ACK*)dyn_buffer, &buffer_pos) != 0) {
+                return -1;
+            }
+        }
+        if (buffer_pos >= (int)sizeof(RPC_API_BASE_MESSAGE_ACK)) {
+            break;
+        }
 #ifdef _WIN32
         if (par_SocketOrNamedPipe) {
 #endif
@@ -568,24 +623,12 @@ __RETRAY:
         }
 #endif
         if (ReadBytes > 0) {
-            if ((ReadBytes == sizeof(RPC_API_PING_TO_CLINT_MESSAGE)) && (((RPC_API_BASE_MESSAGE_ACK*)dyn_buffer)->Command == RPC_API_PING_TO_CLINT_CMD)) {
-                // answer to the alive ping
-                RPC_API_PING_TO_CLINT_MESSAGE_ACK Ack;
-                MEMSET (&Ack, 0, sizeof(Ack));
-                if (SentToRemoteProcedureCallServer (par_SocketOrNamedPipe, par_Socket, RPC_API_PING_TO_CLINT_CMD, (RPC_API_BASE_MESSAGE*)&Ack, sizeof(Ack)) != 0) {
-                    return -1;
-                }
-                goto __RETRAY;
-            } else {
-                buffer_pos += ReadBytes;
-                if (receive_message_size == 0) {
-                    receive_message_size = *(uint32_t*)dyn_buffer;
-                }
-            }
+            buffer_pos += ReadBytes;
         } else {
             return -1;
         }
-    } while (buffer_pos < (int)sizeof(RPC_API_BASE_MESSAGE_ACK));
+    } while (1);
+    receive_message_size = *(uint32_t*)dyn_buffer;
 
     // Read the rest of the message into the dynamic part
     dyn_buffer = (char*)RemoteProcedureGetReceiveBuffer(receive_message_size);
