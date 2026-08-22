@@ -262,6 +262,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_CreateFileWithContent (const char *Filename,
     LenContent = strlen(Content) + 1;
     Size = sizeof(*Req) + LenFilename + LenContent;
     Req = (RPC_API_CREATE_FILE_WITH_CONTENT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFilename = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetFilename, Filename, LenFilename);
@@ -288,6 +291,9 @@ SCRPCDLL_API char* __STDCALL__ XilEnv_GetEnvironVar (const char *EnvironVar)
     Len = strlen(EnvironVar) + 1;
     Size = sizeof(*Req) + Len;
     Req = (RPC_API_GET_ENVIRONMENT_VARIABLE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, Size);
     Req->MaxSize = GET_ENVIRONMENT_VARIABLE_MAX_SIZE;
     Req->OffsetVariableName = (int32_t)sizeof(*Req) - 1;
@@ -335,6 +341,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_SetEnvironVar (const char *EnvironVar, const
     LenEnvironValue = strlen(EnvironValue) + 1;
     Size = sizeof(*Req) + LenEnvironVar + LenEnvironValue;
     Req = (RPC_API_SET_ENVIRONMENT_VARIABLE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetVariableName = (int32_t)sizeof(*Req) - 1;
     Req->OffsetVariableValue = Req->OffsetVariableName + LenEnvironVar;
@@ -360,6 +369,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_ChangeSettings (const char *SettingName, con
     LenValueString = strlen(ValueString) + 1;
     Size = sizeof(*Req) + LenSettingName + LenValueString;
     Req = (RPC_API_SET_CHANGE_SETTINGS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffseSettingName = (int32_t)sizeof(*Req) - 1;
     Req->OffsetSettingValue = Req->OffseSettingName + LenSettingName;
@@ -383,6 +395,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_TextOut (const char *TextOut)
     Len = strlen(TextOut) + 1;
     Size = sizeof(*Req) + Len;
     Req = (RPC_API_TEXT_OUT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetText = (int32_t)sizeof(*Req) - 1;
     MEMCPY (Req->Data, TextOut, Len);
@@ -406,6 +421,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_ErrorTextOut (int ErrLevel, const char *Text
     Len = strlen(TextOut) + 1;
     Size = sizeof(*Req) + Len;
     Req = (RPC_API_ERROR_TEXT_OUT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetText = (int32_t)sizeof(*Req) - 1;
     MEMCPY (Req->Data, TextOut, Len);
@@ -432,6 +450,9 @@ SCRPCDLL_API unsigned long long __STDCALL__ XilEnv_CreateFile (const char *lpFil
     LenFileName = strlen(lpFileName) + 1;
     Size = sizeof(*Req) + LenFileName;
     Req = (RPC_API_CREATE_FILE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return 0;
+    }
     MEMSET(Req, 0, Size);
     Req->dwDesiredAccess = dwDesiredAccess;
     Req->dwShareMode = dwShareMode;
@@ -453,6 +474,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_CloseHandle (unsigned long long hObject)
     int Ret;
 
     Req = (RPC_API_CLOSE_HANDLE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Handle = hObject;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_CLOSE_HANDLE_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -472,6 +496,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_ReadFile (unsigned long long hFile,
     int Ret;
 
     Req = (RPC_API_READ_FILE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Handle = hFile;
     Req->nNumberOfBytesToRead = nNumberOfBytesToRead;
@@ -500,6 +527,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_WriteFile (unsigned long long hFile,
 
     Size = sizeof(*Req) + nNumberOfBytesToWrite;
     Req = (RPC_API_WRITE_FILE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return 0;
+    }
     MEMSET(Req, 0, Size);
 
     Req->nNumberOfBytesToWrite = nNumberOfBytesToWrite;
@@ -644,6 +674,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_StopScheduler(void)
     RPC_API_STOP_SCHEDULER_MESSAGE_ACK Ack;
     int Ret;
     Req = (RPC_API_STOP_SCHEDULER_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_SCHEDULER_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
 }
@@ -654,6 +687,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_ContinueScheduler(void)
     RPC_API_CONTINUE_SCHEDULER_MESSAGE_ACK Ack;
     int Ret;
     Req = (RPC_API_CONTINUE_SCHEDULER_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_CONTINUE_SCHEDULER_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
 }
@@ -664,6 +700,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_IsSchedulerRunning(void)
     RPC_API_IS_SCHEDULER_RUNNING_MESSAGE_ACK Ack;
     int Ret;
     Req = (RPC_API_IS_SCHEDULER_RUNNING_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_IS_SCHEDULER_RUNNING_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
     if (Ret < (int)sizeof(Ack)) {
@@ -683,6 +722,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_StartProcess(const char* name)
     Len = strlen(name) + 1;
     Size = sizeof(*Req) + Len;
     Req = (RPC_API_START_PROCESS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY (Req->Data, name, Len);
@@ -705,6 +747,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_StartProcessAndLoadSvl(const char* ProcessNa
     LenSvlName = strlen(SvlName) + 1;
     Size = sizeof(*Req) + LenProcessName + LenSvlName;
     Req = (RPC_API_START_PROCESS_AND_LOAD_SVL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -756,6 +801,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_StartProcessEx(const char* ProcessName,
 
     Size = sizeof(*Req) + LenProcessName + LenSVLFile + LenBBPrefix + LenRangeErrorCounter + LenRangeControl;
     Req = (RPC_API_START_PROCESS_EX_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Prio = Prio;
     Req->Cycle = Cycle;
@@ -834,6 +882,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_StartProcessEx2(const char* ProcessName,
 
     Size = sizeof(*Req) + LenProcessName + LenSVLFile+ LenA2LFile + LenBBPrefix + LenRangeErrorCounter + LenRangeControl;
     Req = (RPC_API_START_PROCESS_EX2_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Prio = Prio;
     Req->Cycle = Cycle;
@@ -885,6 +936,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_StopProcess(const char* name)
     LenProcessName = strlen(name) + 1;
     Size = sizeof(*Req) + LenProcessName;
     Req = (RPC_API_STOP_PROCESS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, name, LenProcessName);
@@ -908,6 +962,9 @@ SCRPCDLL_API char* __STDCALL__ XilEnv_GetNextProcess (int flag, char* filter)
     Len = strlen(filter) + 1;
     Size = sizeof(*Req) + Len;
     Req = (RPC_API_GET_NEXT_PROCESS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFilter = (int32_t)sizeof(*Req) - 1;
     MEMCPY (Req->Data, filter, Len);
@@ -953,6 +1010,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_GetProcessState(const char* name)
     LenProcessName = strlen(name) + 1;
     Size = sizeof(*Req) + LenProcessName;
     Req = (RPC_API_GET_PROCESS_STATE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, name, LenProcessName);
@@ -971,6 +1031,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_DoNextCycles (int Cycles)
     int Ret;
 
     Req = (RPC_API_DO_NEXT_CYCLES_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Cycles = Cycles;
 
@@ -984,6 +1047,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_DoNextCyclesAndWait (int Cycles)
     int Ret;
 
     Req = (RPC_API_DO_NEXT_CYCLES_AND_WAIT_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Cycles = Cycles;
 
@@ -1002,6 +1068,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_DoNextConditionsCyclesAndWait (const char *
     Size = sizeof(*Req) + LenConditionsEquation;
 
     Req = (RPC_API_DO_NEXT_CONDITIONS_CYCLES_AND_WAIT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return;
+    }
     Req->Cycles = Cycles;
     Req->OffsetConditions = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetConditions, ConditionsEquation, LenConditionsEquation);
@@ -1021,6 +1090,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_AddBeforeProcessEquationFromFile(int Nr, con
     LenEquFile = strlen(EquFile) + 1;
     Size = sizeof(*Req) + LenProcessName + LenEquFile;
     Req = (RPC_API_ADD_BEFORE_PROCESS_EQUATION_FROM_FILE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -1046,6 +1118,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_AddBehindProcessEquationFromFile(int Nr, con
     LenEquFile = strlen(EquFile) + 1;
     Size = sizeof(*Req) + LenProcessName + LenEquFile;
     Req = (RPC_API_ADD_BEHIND_PROCESS_EQUATION_FROM_FILE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -1070,6 +1145,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_DelBeforeProcessEquations(int Nr, const cha
     LenProcessName = strlen(ProcessName) + 1;
     Size = sizeof(*Req) + LenProcessName;
     Req = (RPC_API_DEL_BEFORE_PROCESS_EQUATIONS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -1088,6 +1166,9 @@ SCRPCDLL_API void __STDCALL__ XilEnv_DelBehindProcessEquations(int Nr, const cha
     LenProcessName = strlen(ProcessName) + 1;
     Size = sizeof(*Req) + LenProcessName;
     Req = (RPC_API_DEL_BEHIND_PROCESS_EQUATIONS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -1106,6 +1187,9 @@ SCRPCDLL_API int __STDCALL__ XilEnv_WaitUntil (const char *Equation, int Cycles)
     LenEquation = strlen(Equation) + 1;
     Size = sizeof(*Req) + LenEquation;
     Req = (RPC_API_WAIT_UNTIL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetEquation = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetEquation, Equation, LenEquation);
@@ -1132,6 +1216,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartScript(const char* scrfile)
     LenSriptFile= strlen(scrfile) + 1;
     Size = sizeof(*Req) + LenSriptFile;
     Req = (RPC_API_START_SCRIPT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetScriptFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetScriptFile, scrfile, LenSriptFile);
@@ -1150,6 +1237,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopScript(void)
     int Ret;
     
     Req = (RPC_API_STOP_SCRIPT_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_SCRIPT_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1170,6 +1260,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartRecorder(const char* cfgfile)
     LenCfgFile= strlen(cfgfile) + 1;
     Size = sizeof(*Req) + LenCfgFile;
     Req = (RPC_API_START_RECORDER_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetCfgFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetCfgFile, cfgfile, LenCfgFile);
@@ -1188,6 +1281,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopRecorder(void)
     int Ret;
     
     Req = (RPC_API_STOP_RECORDER_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_RECORDER_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1208,6 +1304,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_RecorderAddComment(const char* Comment
     LenComment= strlen(Comment) + 1;
     Size = sizeof(*Req) + LenComment;
     Req = (RPC_API_RECORDER_ADD_COMMENT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetComment = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetComment, Comment, LenComment);
@@ -1230,6 +1329,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartPlayer(const char* cfgfile)
     LenCfgFile= strlen(cfgfile) + 1;
     Size = sizeof(*Req) + LenCfgFile;
     Req = (RPC_API_START_PLAYER_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetCfgFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetCfgFile, cfgfile, LenCfgFile);
@@ -1248,6 +1350,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopPlayer(void)
     int Ret;
     
     Req = (RPC_API_STOP_PLAYER_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_PLAYER_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1268,6 +1373,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartEquations(const char* equfile)
     LenEquFile= strlen(equfile) + 1;
     Size = sizeof(*Req) + LenEquFile;
     Req = (RPC_API_START_EQUATIONS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetCfgFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetCfgFile, equfile, LenEquFile);
@@ -1286,6 +1394,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopEquations(void)
     int Ret;
     
     Req = (RPC_API_STOP_EQUATIONS_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_EQUATIONS_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1306,6 +1417,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartGenerator(const char* genfile)
     LenGenFile= strlen(genfile) + 1;
     Size = sizeof(*Req) + LenGenFile;
     Req = (RPC_API_START_GENERATOR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetCfgFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetCfgFile, genfile, LenGenFile);
@@ -1325,6 +1439,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopGenerator(void)
     int Ret;
     
     Req = (RPC_API_STOP_GENERATOR_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_GENERATOR_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1346,6 +1463,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadDesktop(const char* file)
     LenFile= strlen(file) + 1;
     Size = sizeof(*Req) + LenFile;
     Req = (RPC_API_LOAD_DESKTOP_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetFile, file, LenFile);
@@ -1368,6 +1488,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SaveDesktop(const char* file)
     LenFile= strlen(file) + 1;
     Size = sizeof(*Req) + LenFile;
     Req = (RPC_API_SAVE_DESKTOP_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFile = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetFile, file, LenFile);
@@ -1388,6 +1511,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ClearDesktop(void)
 
     Size = sizeof(*Req);
     Req = (RPC_API_SAVE_DESKTOP_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_CLEAR_DESKTOP_CMD, &(Req->Header), Size, &(Ack.Header), sizeof(Ack));
@@ -1408,6 +1534,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_CreateDialog(const char* DialogName)
     LenDialogName= strlen(DialogName) + 1;
     Size = sizeof(*Req) + LenDialogName;
     Req = (RPC_API_CREATE_DIALOG_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetDialogName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetDialogName, DialogName, LenDialogName);
@@ -1431,6 +1560,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AddDialogItem(const char* Description,
     LenVariName = strlen(VariName) + 1;
     Size = sizeof(*Req) + LenDescription + LenVariName;
     Req = (RPC_API_ADD_DIALOG_ITEM_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetDescription = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetDescription, Description, LenDescription);
@@ -1452,6 +1584,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ShowDialog(void)
     int Ret;
     
     Req = (RPC_API_SHOW_DIALOG_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_SHOW_DIALOG_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1468,6 +1603,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_IsDialogClosed(void)
     int Ret;
     
     Req = (RPC_API_IS_DIALOG_CLOSED_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_IS_DIALOG_CLOSED_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -1489,6 +1627,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SelectSheet (const char* SheetName)
     LenSheetName = strlen(SheetName) + 1;
     Size = sizeof(*Req) + LenSheetName;
     Req = (RPC_API_SELECT_SHEET_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSheetName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSheetName, SheetName, LenSheetName);
@@ -1511,6 +1652,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AddSheet (const char* SheetName)
     LenSheetName = strlen(SheetName) + 1;
     Size = sizeof(*Req) + LenSheetName;
     Req = (RPC_API_ADD_SHEET_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSheetName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSheetName, SheetName, LenSheetName);
@@ -1533,6 +1677,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_DeleteSheet (const char* SheetName)
     LenSheetName = strlen(SheetName) + 1;
     Size = sizeof(*Req) + LenSheetName;
     Req = (RPC_API_DELETE_SHEET_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSheetName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSheetName, SheetName, LenSheetName);
@@ -1556,6 +1703,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_RenameSheet (const char* OldSheetName,
     LenNewSheetName = strlen(NewSheetName) + 1;
     Size = sizeof(*Req) + LenOldSheetName + LenNewSheetName;
     Req = (RPC_API_RENAME_SHEET_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetOldSheetName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetOldSheetName, OldSheetName, LenOldSheetName);
@@ -1580,6 +1730,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_OpenWindow (const char* WindowName)
     LenWindowName = strlen(WindowName) + 1;
     Size = sizeof(*Req) + LenWindowName;
     Req = (RPC_API_OPEN_WINDOW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetWindowName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetWindowName, WindowName, LenWindowName);
@@ -1602,6 +1755,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_CloseWindow (const char* WindowName)
     LenWindowName = strlen(WindowName) + 1;
     Size = sizeof(*Req) + LenWindowName;
     Req = (RPC_API_CLOSE_WINDOW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetWindowName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetWindowName, WindowName, LenWindowName);
@@ -1624,6 +1780,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_DeleteWindow (const char* WindowName)
     LenWindowName = strlen(WindowName) + 1;
     Size = sizeof(*Req) + LenWindowName;
     Req = (RPC_API_DELETE_WINDOW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetWindowName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetWindowName, WindowName, LenWindowName);
@@ -1647,6 +1806,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ImportWindow (const char* WindowName, 
     LenFileName = strlen(FileName) + 1;
     Size = sizeof(*Req) + LenFileName + LenFileName;
     Req = (RPC_API_IMPORT_WINDOW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetWindowName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetWindowName, WindowName, LenWindowName);
@@ -1673,6 +1835,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ExportWindow (const char* SheetName, c
     LenFileName = strlen(FileName) + 1;
     Size = sizeof(*Req) + LenFileName + LenFileName;
     Req = (RPC_API_EXPORT_WINDOW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSheetName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSheetName, SheetName, LenSheetName);
@@ -1704,6 +1869,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AddVari(const char* label, int type, c
     LenUnit = strlen(unit) + 1;
     Size = sizeof(*Req) + LenLabel + LenUnit;
     Req = (RPC_API_ADD_BBVARI_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Type = type;
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
@@ -1725,6 +1893,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_RemoveVari(int vid)
     int Ret;
     
     Req = (RPC_API_REMOVE_BBVARI_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -1746,6 +1917,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AttachVari(const char* label)
     LenLabel = strlen(label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_ATTACH_BBVARI_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetLabel, label, LenLabel);
@@ -1764,6 +1938,9 @@ CFUNC SCRPCDLL_API double __STDCALL__ XilEnv_Get(int vid)
     int Ret;
     
     Req = (RPC_API_GET_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0.0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -1781,6 +1958,9 @@ CFUNC SCRPCDLL_API double __STDCALL__ XilEnv_GetPhys(int vid)
     int Ret;
     
     Req = (RPC_API_GET_PHYS_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0.0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -1798,6 +1978,9 @@ CFUNC SCRPCDLL_API void __STDCALL__ XilEnv_Set(int vid, double value)
     int Ret;
     
     Req = (RPC_API_SET_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -1812,6 +1995,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetPhys(int vid, double value)
     int Ret;
     
     Req = (RPC_API_SET_PHYS_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -1834,6 +2020,9 @@ CFUNC SCRPCDLL_API double __STDCALL__ XilEnv_Equ(const char* equ)
     LenEquation = strlen(equ) + 1;
     Size = sizeof(*Req) + LenEquation;
     Req = (RPC_API_EQU_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return 0.0;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetEquation = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetEquation, equ, LenEquation);
@@ -1857,6 +2046,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_WrVariEnable(const char* label, const 
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenLabel + LenProcess;
     Req = (RPC_API_WR_VARI_ENABLE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetLabel, label, LenLabel);
@@ -1882,6 +2074,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_WrVariDisable(const char* label, const
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenLabel + LenProcess;
     Req = (RPC_API_WR_VARI_DISABLE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetLabel, label, LenLabel);
@@ -1907,6 +2102,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_IsWrVariEnabled(const char* label, con
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenLabel + LenProcess;
     Req = (RPC_API_IS_WR_VARI_ENABLED_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetLabel, label, LenLabel);
@@ -1932,6 +2130,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadRefList(const char* reflist, const
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenRefList + LenProcess;
     Req = (RPC_API_LOAD_REF_LIST_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetRefList = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetRefList, reflist, LenRefList);
@@ -1957,6 +2158,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AddRefList(const char* reflist, const 
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenRefList + LenProcess;
     Req = (RPC_API_ADD_REF_LIST_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetRefList = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetRefList, reflist, LenRefList);
@@ -1982,6 +2186,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SaveRefList(const char* reflist, const
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenRefList + LenProcess;
     Req = (RPC_API_SAVE_REF_LIST_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetRefList = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetRefList, reflist, LenRefList);
@@ -2003,6 +2210,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetVariConversionType(int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_CONVERSION_TYPE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2021,6 +2231,9 @@ CFUNC SCRPCDLL_API char* __STDCALL__ XilEnv_GetVariConversionString(int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_CONVERSION_STRING_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2065,6 +2278,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetVariConversion(int vid, int type, c
     LenConversionString = strlen(conv_string) + 1;
     Size = sizeof(*Req) + LenConversionString;
     Req = (RPC_API_SET_VARI_CONVERSION_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Vid = vid;
     Req->Type = type;
@@ -2085,6 +2301,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetVariType(int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_TYPE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2103,6 +2322,9 @@ CFUNC SCRPCDLL_API char* __STDCALL__ XilEnv_GetVariUnit(int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_UNIT_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2148,6 +2370,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetVariUnit(int vid, char *unit)
     LenUnit = strlen(unit) + 1;
     Size = sizeof(*Req) + LenUnit;
     Req = (RPC_API_SET_VARI_UNIT_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Vid = vid;
     Req->OffsetUnit = (int32_t)sizeof(*Req) - 1;
@@ -2167,6 +2392,9 @@ CFUNC SCRPCDLL_API double __STDCALL__ XilEnv_GetVariMin(int vid)
     int Ret;
 
     Req = (RPC_API_GET_VARI_MIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0.0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2184,6 +2412,9 @@ CFUNC SCRPCDLL_API double __STDCALL__ XilEnv_GetVariMax(int vid)
     int Ret;
 
     Req = (RPC_API_GET_VARI_MAX_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return 0.0;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2201,6 +2432,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetVariMin(int vid, double min)
     int Ret;
     
     Req = (RPC_API_SET_VARI_MIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2219,6 +2453,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetVariMax(int vid, double max)
     int Ret;
     
     Req = (RPC_API_SET_VARI_MAX_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2242,6 +2479,9 @@ CFUNC SCRPCDLL_API char* __STDCALL__ XilEnv_GetNextVari (int flag, char* filter)
     LenFilter = strlen(filter) + 1;
     Size = sizeof(*Req) + LenFilter;
     Req = (RPC_API_GET_NEXT_VARI_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, Size);
     Req->Flag = flag;
     Req->OffsetFilter = (int32_t)sizeof(*Req) - 1;
@@ -2291,6 +2531,9 @@ CFUNC SCRPCDLL_API char* __STDCALL__ XilEnv_GetNextVariEx (int flag, char* filte
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenFilter + LenProcess;
     Req = (RPC_API_GET_NEXT_VARI_EX_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, Size);
     Req->Flag = flag;
     Req->AccessFlags = AccessFlags;
@@ -2338,6 +2581,9 @@ CFUNC SCRPCDLL_API char* __STDCALL__ XilEnv_GetVariEnum (int vid, double value)
     int Ret;
 
     Req = (RPC_API_GET_VARI_ENUM_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Vid = vid;
     Req->Value = value;
@@ -2380,6 +2626,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetVariDisplayFormatWidth (int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_DISPLAY_FORMAT_WIDTH_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2397,6 +2646,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetVariDisplayFormatPrec (int vid)
     int Ret;
     
     Req = (RPC_API_GET_VARI_DISPLAY_FORMAT_PREC_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2414,6 +2666,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetVariDisplayFormat (int vid, int wid
     int Ret;
     
     Req = (RPC_API_SET_VARI_DISPLAY_FORMAT_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Req->Vid = vid;
@@ -2438,6 +2693,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ImportVariProperties (const char* File
     LenFilename = strlen(Filename) + 1;
     Size = sizeof(*Req) + LenFilename;
     Req = (RPC_API_IMPORT_VARI_PROPERTIES_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFilename = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetFilename, Filename, LenFilename);
@@ -2461,6 +2719,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_EnableRangeControl (const char* Proces
     LenVariableNameFilter = strlen(VariableNameFilter) + 1;
     Size = sizeof(*Req) + LenProcessNameFilter + LenVariableNameFilter;
     Req = (RPC_API_ENABLE_RANGE_CONTROL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessNameFilter = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessNameFilter, ProcessNameFilter, LenProcessNameFilter);
@@ -2486,6 +2747,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_DisableRangeControl (const char* Proce
     LenVariableNameFilter = strlen(VariableNameFilter) + 1;
     Size = sizeof(*Req) + LenProcessNameFilter + LenVariableNameFilter;
     Req = (RPC_API_DISABLE_RANGE_CONTROL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessNameFilter = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessNameFilter, ProcessNameFilter, LenProcessNameFilter);
@@ -2516,6 +2780,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_WriteFrame (int *Vids, signed char *Ph
         Size += LenPhysOrRaw;
     }
     Req = (RPC_API_WRITE_FRAME_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Elements = Elements;
     Req->Offset_int32_Elements_Vids = (int32_t)sizeof(*Req) - 1;
@@ -2552,6 +2819,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetFrame (int *Vids, signed char *Phys
         Size += LenPhysOrRaw;
     }
     Req = (RPC_API_GET_FRAME_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Elements = Elements;
     Req->Offset_int32_Elements_Vids = (int32_t)sizeof(*Req) - 1;
@@ -2600,6 +2870,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_WriteFrameWaitReadFrame (int *WriteVid
     }
 
     Req = (RPC_API_WRITE_FRAME_WAIT_READ_FRAME_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->WriteSize = WriteSize;
     Req->ReadSize = ReadSize;
@@ -2648,6 +2921,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadSvl(const char* svlfile, const cha
     LenProcess = strlen(process) + 1;
     Size = sizeof(*Req) + LenSvlFilename + LenProcess;
     Req = (RPC_API_LOAD_SVL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSvlFilename = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSvlFilename, svlfile, LenSvlFilename);
@@ -2674,6 +2950,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SaveSvl(const char* svlfile, const cha
     LenFilter = strlen(filter) + 1;
     Size = sizeof(*Req) + LenSvlFilename + LenProcess + LenFilter;
     Req = (RPC_API_SAVE_SVL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSvlFilename = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSvlFilename, svlfile, LenSvlFilename);
@@ -2702,6 +2981,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SaveSal(const char* salfile, const cha
     LenFilter = strlen(filter) + 1;
     Size = sizeof(*Req) + LenSalFilename + LenProcess + LenFilter;
     Req = (RPC_API_SAVE_SAL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSalFilename = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSalFilename, salfile, LenSalFilename);
@@ -2729,6 +3011,9 @@ CFUNC SCRPCDLL_API enum BB_DATA_TYPES __STDCALL__ XilEnv_GetSymbolRaw(const char
     LenProcess = strlen(Process) + 1;
     Size = sizeof(*Req) + LenSymbol + LenProcess;
     Req = (RPC_API_GET_SYMBOL_RAW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSymbol = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSymbol, Symbol, LenSymbol);
@@ -2757,6 +3042,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetSymbolRaw(const char* Symbol, const
     LenProcess = strlen(Process) + 1;
     Size = sizeof(*Req) + LenSymbol + LenProcess;
     Req = (RPC_API_SET_SYMBOL_RAW_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSymbol = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSymbol, Symbol, LenSymbol);
@@ -2788,6 +3076,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetupLinkToExternProcess(const char *A
     LenProcessName = strlen(ProcessName) + 1;
     Size = sizeof(*Req) + LenA2LFileName + LenProcessName;
     Req = (RPC_API_SETUP_LINK_TO_EXTERN_PROCESS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetA2LFileName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetA2LFileName, A2LFileName, LenA2LFileName);
@@ -2813,6 +3104,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetLinkToExternProcess(const char *Pro
     LenProcessName = strlen(ProcessName) + 1;
     Size = sizeof(*Req) + LenProcessName;
     Req = (RPC_API_GET_LINK_TO_EXTERN_PROCESS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetProcessName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetProcessName, ProcessName, LenProcessName);
@@ -2835,6 +3129,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetIndexFromLink(int LinkNr, const cha
     LenLabel = strlen(Label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_GET_INDEX_FROM_LINK_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetLabel, Label, LenLabel);
@@ -2859,6 +3156,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_GetNextSymbolFromLink(int LinkNr, int 
     LenFilter = strlen(Filter) + 1;
     Size = sizeof(*Req) + LenFilter;
     Req = (RPC_API_GET_NEXT_SYMBOL_FROM_LINK_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetFilter = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetFilter, Filter, LenFilter);
@@ -2894,6 +3194,9 @@ CFUNC SCRPCDLL_API XILENV_LINK_DATA* __STDCALL__ XilEnv_GetDataFromLink(int Link
 
     Size = sizeof(*Req);
     Req = (RPC_API_GET_DATA_FROM_LINK_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return NULL;
+    }
     MEMSET(Req, 0, Size);
     Req->LinkNr = LinkNr;
     Req->Index = Index;
@@ -2932,6 +3235,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetDataToLink(int LinkNr, int Index, X
     LenData = *(int*)(Data->Data);   // the first 4 bytes are the size of the structure
     Size = sizeof(*Req) + LenData - 1;
     Req = (RPC_API_SET_DATA_TO_LINK_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetData = (int)sizeof(*Req) - 1;
     MEMCPY((char*)Req + Req->OffsetData, Data->Data, LenData);
@@ -2967,6 +3273,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ReferenceMeasurementToBlackboard(int L
 
     Size = sizeof(*Req);
     Req = (RPC_API_REFERENCE_MEASUREMENT_TO_BLACKBOARD_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->LinkNr = LinkNr;
     Req->Index = Index;
@@ -2988,6 +3297,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_DereferenceMeasurementFromBlackboard(i
 
     Size = sizeof(*Req);
     Req = (RPC_API_DEREFERENCE_MEASUREMENT_FROM_BLACKBOARD_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->LinkNr = LinkNr;
     Req->Index = Index;
@@ -3012,6 +3324,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadCanVariante(const char* canfile, i
     LenCanFile = strlen(canfile) + 1;
     Size = sizeof(*Req) + LenCanFile;
     Req = (RPC_API_LOAD_CAN_VARIANTE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = channel;
     Req->OffsetCanFile = (int32_t)sizeof(*Req) - 1;
@@ -3035,6 +3350,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadAndSelCanVariante(const char* canf
     LenCanFile = strlen(canfile) + 1;
     Size = sizeof(*Req) + LenCanFile;
     Req = (RPC_API_LOAD_AND_SEL_CAN_VARIANTE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = channel;
     Req->OffsetCanFile = (int32_t)sizeof(*Req) - 1;
@@ -3058,6 +3376,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_AppendCanVariante(const char* canfile,
     LenCanFile = strlen(canfile) + 1;
     Size = sizeof(*Req) + LenCanFile;
     Req = (RPC_API_APPEND_CAN_VARIANTE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = channel;
     Req->OffsetCanFile = (int32_t)sizeof(*Req) - 1;
@@ -3077,6 +3398,9 @@ CFUNC SCRPCDLL_API void __STDCALL__ XilEnv_DelAllCanVariants(void)
     int Ret;
 
     Req = (RPC_API_DEL_ALL_CAN_VARIANTE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_DEL_ALL_CAN_VARIANTE_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3096,6 +3420,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_TransmitCAN (int channel, int id, int 
     LenCanData = 8;
     Size = sizeof(*Req) + LenCanData;
     Req = (RPC_API_TRANSMIT_CAN_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = channel;
     Req->Id = id;
@@ -3129,6 +3456,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_TransmitCANFd (int channel, int id, in
     LenCanData = 64;
     Size = sizeof(*Req) + LenCanData;
     Req = (RPC_API_TRANSMIT_CAN_FD_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = channel;
     Req->Id = id;
@@ -3152,6 +3482,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_OpenCANQueue (int Depth)
     int Ret;
 
     Req = (RPC_API_OPEN_CAN_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Depth = Depth;
 
@@ -3169,6 +3502,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_OpenCANFdQueue (int Depth, int FdFlag)
     int Ret;
 
     Req = (RPC_API_OPEN_CAN_FD_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Depth = Depth;
     Req->FdFlag = FdFlag;
@@ -3189,6 +3525,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCANAcceptanceWindows (int Elements,
 
     Size = sizeof(*Req) - 1 + Elements * sizeof(*pWindows);
     Req = (RPC_API_SET_CAN_ACCEPTANCE_WINDOWS_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Size = Elements;
     Req->Offset_CanAcceptance_Size_Windows =  sizeof(*Req) - 1;
@@ -3208,6 +3547,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_FlushCANQueue (int Flags)
     int Ret;
 
     Req = (RPC_API_FLUSH_CAN_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Flags = Flags;
 
@@ -3227,6 +3569,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ReadCANQueue (int ReadMaxElements,
     int Ret;
 
     Req = (RPC_API_READ_CAN_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->ReadMaxElements = ReadMaxElements;
     Ret = RemoteProcedureCallTransactDynBuf (SocketOrNamedPipe, Socket, RPC_API_READ_CAN_QUEUE_CMD, &(Req->Header), sizeof(*Req), (RPC_API_BASE_MESSAGE_ACK **)&Ack);
@@ -3248,6 +3593,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ReadCANFdQueue (int ReadMaxElements,
     int Ret;
 
     Req = (RPC_API_READ_CAN_FD_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->ReadMaxElements = ReadMaxElements;
     Ret = RemoteProcedureCallTransactDynBuf (SocketOrNamedPipe, Socket, RPC_API_READ_CAN_FD_QUEUE_CMD, &(Req->Header), sizeof(*Req), (RPC_API_BASE_MESSAGE_ACK **)&Ack);
@@ -3270,6 +3618,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_TransmitCANQueue (int WriteElements,
 
     Size = sizeof(*Req) - 1 + WriteElements * sizeof(CAN_FIFO_ELEM);
     Req = (RPC_API_TRANSMIT_CAN_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->WriteElements = WriteElements;
     Req->Offset_CanObject_WriteElements_Messages =  sizeof(*Req) - 1;
@@ -3292,6 +3643,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_TransmitCANFdQueue (int WriteElements,
 
     Size = sizeof(*Req) - 1 + WriteElements * sizeof(CAN_FD_FIFO_ELEM);
     Req = (RPC_API_TRANSMIT_CAN_FD_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->WriteElements = WriteElements;
     Req->Offset_CanFdObject_WriteElements_Messages =  sizeof(*Req) - 1;
@@ -3311,6 +3665,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_CloseCANQueue (void)
     int Ret;
 
     Req = (RPC_API_CLOSE_CAN_QUEUE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_CLOSE_CAN_QUEUE_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3333,6 +3690,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCanErr (int Channel, int Id, int St
     LenByteorder = strlen(Byteorder) + 1;
     Size = sizeof(*Req) + LenByteorder;
     Req = (RPC_API_SET_CAN_ERR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = Channel;
     Req->Id = Id;
@@ -3360,6 +3720,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCanErrSignalName (int Channel, int 
     LenSignalname = strlen(Signalname) + 1;
     Size = sizeof(*Req) + LenSignalname;
     Req = (RPC_API_SET_CAN_ERR_SIGNAL_NAME_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = Channel;
     Req->Id = Id;
@@ -3381,6 +3744,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ClearCanErr (void)
     int Ret;
 
     Req = (RPC_API_CLEAR_CAN_ERR_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_CLEAR_CAN_ERR_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3402,6 +3768,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCanSignalConversion (int Channel, i
     LenConvertion = strlen(Conversion) + 1;
     Size = sizeof(*Req) + LenSignalname + LenConvertion;
     Req = (RPC_API_SET_CAN_SIGNAL_CONVERTION_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = Channel;
     Req->Id = Id;
@@ -3428,6 +3797,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ResetCanSignalConversion (int Channel,
     LenSignalname = strlen(Signalname) + 1;
     Size = sizeof(*Req) + LenSignalname;
     Req = (RPC_API_RESET_CAN_SIGNAL_CONVERTION_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Channel = Channel;
     Req->Id = Id;
@@ -3447,6 +3819,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ResetAllCanSignalConversion (int Chann
     int Ret;
 
     Req = (RPC_API_RESET_ALL_CAN_SIGNAL_CONVERTION_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Channel = Channel;
     Req->Id = Id;
@@ -3464,6 +3839,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCanChannelCount (int ChannelCount)
     int Ret;
  
     Req = (RPC_API_SET_CAN_CHANNEL_COUNT_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->ChannelCount = ChannelCount;
 
@@ -3481,6 +3859,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_SetCanChannelStartupState (int Channel
     int Ret;
 
     Req = (RPC_API_SET_CAN_CHANNEL_STARTUP_STATE_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Channel = Channel;
     Req->StartupState = StartupState;
@@ -3513,6 +3894,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCANRecorder (const char *par_File
 
     Size = sizeof(*Req) - 1 + LenFileName + LenTriggerEqu + Elements * sizeof(*pWindows);
     Req = (RPC_API_START_CAN_RECORDER_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Offset_FileName = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->Offset_FileName, par_FileName, LenFileName);
@@ -3537,6 +3921,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopCANRecorder (void)
     int Ret;
 
     Req = (RPC_API_STOP_CAN_RECORDER_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
 
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_CAN_RECORDER_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3559,6 +3946,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadCCPConfig(int Connection, const ch
     LenCcpFile = strlen(CcpFile) + 1;
     Size = sizeof(*Req) + LenCcpFile;
     Req = (RPC_API_LOAD_CCP_CONFIG_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetCcpFile = (int32_t)sizeof(*Req) - 1;
@@ -3577,6 +3967,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPBegin(int Connection)
     int Ret;
 
     Req = (RPC_API_START_CCP_BEGIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_CCP_BEGIN_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3597,6 +3990,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPAddVar(int Connection, const c
     LenLabel = strlen(Label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_START_CCP_ADD_VAR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
@@ -3615,6 +4011,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPEnd(int Connection)
     int Ret;
 
     Req = (RPC_API_START_CCP_END_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_CCP_END_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3631,6 +4030,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopCCP(int Connection)
     int Ret;
 
     Req = (RPC_API_STOP_CCP_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_CCP_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3647,6 +4049,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPCalBegin(int Connection)
     int Ret;
 
     Req = (RPC_API_START_CCP_CAL_BEGIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_CCP_CAL_BEGIN_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3667,6 +4072,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPCalAddVar(int Connection, cons
     LenLabel = strlen(Label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_START_CCP_CAL_ADD_VAR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
@@ -3685,6 +4093,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartCCPCalEnd(int Connection)
     int Ret;
 
     Req = (RPC_API_START_CCP_CAL_END_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_CCP_CAL_END_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3701,6 +4112,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopCCPCal(int Connection)
     int Ret;
 
     Req = (RPC_API_STOP_CCP_CAL_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_CCP_CAL_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3724,6 +4138,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_LoadXCPConfig(int Connection, const ch
     LenXcpFile = strlen(XcpFile) + 1;
     Size = sizeof(*Req) + LenXcpFile;
     Req = (RPC_API_LOAD_XCP_CONFIG_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetXcpFile = (int32_t)sizeof(*Req) - 1;
@@ -3742,6 +4159,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPBegin(int Connection)
     int Ret;
 
     Req = (RPC_API_START_XCP_BEGIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_XCP_BEGIN_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3762,6 +4182,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPAddVar(int Connection, const c
     LenLabel = strlen(Label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_START_XCP_ADD_VAR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
@@ -3780,6 +4203,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPEnd(int Connection)
     int Ret;
 
     Req = (RPC_API_START_XCP_END_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_XCP_END_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3796,6 +4222,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopXCP(int Connection)
     int Ret;
 
     Req = (RPC_API_STOP_XCP_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_XCP_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3812,6 +4241,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPCalBegin(int Connection)
     int Ret;
 
     Req = (RPC_API_START_XCP_CAL_BEGIN_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_XCP_CAL_BEGIN_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3832,6 +4264,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPCalAddVar(int Connection, cons
     LenLabel = strlen(Label) + 1;
     Size = sizeof(*Req) + LenLabel;
     Req = (RPC_API_START_XCP_CAL_ADD_VAR_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->Connection = Connection;
     Req->OffsetLabel = (int32_t)sizeof(*Req) - 1;
@@ -3850,6 +4285,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StartXCPCalEnd(int Connection)
     int Ret;
 
     Req = (RPC_API_START_XCP_CAL_END_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_START_XCP_CAL_END_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3866,6 +4304,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_StopXCPCal(int Connection)
     int Ret;
 
     Req = (RPC_API_STOP_XCP_CAL_MESSAGE*)RemoteProcedureGetTransmitBuffer(sizeof(*Req));
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, sizeof(*Req));
     Req->Connection = Connection;
     Ret = RemoteProcedureCallTransact(SocketOrNamedPipe, Socket, RPC_API_STOP_XCP_CAL_CMD, &(Req->Header), sizeof(*Req), &(Ack.Header), sizeof(Ack));
@@ -3896,6 +4337,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ReferenceSymbol(const char* Symbol, co
     LenConversion = strlen(Conversion) + 1;
     Size = sizeof(*Req) + LenSymbol + LenProcess + LenUnit + LenConversion;
     Req = (RPC_API_REFERENCE_SYMBOL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSymbol = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSymbol, Symbol, LenSymbol);
@@ -3936,6 +4380,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_DereferenceSymbol(const char* Symbol, 
     LenProcess = strlen(Process) + 1;
     Size = sizeof(*Req) + LenSymbol + LenProcess;
     Req = (RPC_API_DEREFERENCE_SYMBOL_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetSymbol = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetSymbol, Symbol, LenSymbol);
@@ -3994,6 +4441,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ExportA2lMeasurementList(const char* M
     LenProcess = strlen(Process) + 1;
     Size = sizeof(*Req) + LenRefList + LenProcess;
     Req = (RPC_API_EXPORT_A2L_MEASUREMENT_LIST_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetRefList = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetRefList, MeasureList, LenRefList);
@@ -4019,6 +4469,9 @@ CFUNC SCRPCDLL_API int __STDCALL__ XilEnv_ImportA2lMeasurementList(const char* M
     LenProcess = strlen(Process) + 1;
     Size = sizeof(*Req) + LenRefList + LenProcess;
     Req = (RPC_API_IMPORT_A2L_MEASUREMENT_LIST_MESSAGE*)RemoteProcedureGetTransmitBuffer(Size);
+    if (Req == NULL) {
+        return -1;
+    }
     MEMSET(Req, 0, Size);
     Req->OffsetRefList = (int32_t)sizeof(*Req) - 1;
     MEMCPY ((char*)Req + Req->OffsetRefList, MeasureList, LenRefList);

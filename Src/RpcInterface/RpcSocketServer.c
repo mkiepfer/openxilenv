@@ -648,7 +648,7 @@ static void* RemoteProcedureCallSocketServerThreadFunction (void* lpParam)
     }
     // erst mal einen grossen Transmit Puffer anlegen!
     Transmit = RemoteProcedureGetTransmitBuffer(Connection, RPC_MESSAGE_BUFSIZE);
-    while (ReceiveFromRemoteProcedureCallDynBuf(Connection, &Receive)) {
+    while ((Transmit != NULL) && ReceiveFromRemoteProcedureCallDynBuf(Connection, &Receive)) {
         if (MustSyncWithGUI(Receive)) {
             ToTransmitDataLen = SyncWithGUI(Connection, Receive, Transmit);
         } else {
@@ -833,7 +833,7 @@ static DWORD WINAPI NamedPipeRemoteProcedureCallServerThreadFunction (LPVOID lpP
     }
     // erst mal einen grossen Transmit Puffer anlegen!
     Transmit = RemoteProcedureGetTransmitBuffer(Connection, RPC_MESSAGE_BUFSIZE);
-    while (NamedPipeReceiveFromRemoteProcedureCallDynBuf(Connection, &Receive)) {
+    while ((Transmit != NULL) && NamedPipeReceiveFromRemoteProcedureCallDynBuf(Connection, &Receive)) {
         if (MustSyncWithGUI(Receive)) {
             ToTransmitDataLen = SyncWithGUI(Connection, Receive, Transmit);
         } else {
