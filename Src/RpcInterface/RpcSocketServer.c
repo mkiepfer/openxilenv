@@ -1269,19 +1269,24 @@ void RemoteProcedureWaitForConnection(RPC_CONNECTION *par_Connection)
             if (par_Connection->WaitToReceiveAlivePingAck) {
                par_Connection->WaitToReceiveAlivePingAck = 0;
                RPC_API_PING_TO_CLINT_MESSAGE_ACK Ack;
+               int AckValid;
+               // The CriticalSection must not be held across this blocking recv/ReadFile, otherwise
+               // the scheduler's RemoteProcedureWakeWaitForConnection() would block on EnterCriticalSection()
+               // and never clear WaitFlag -> deadlock (see issue #10).
+               LeaveCriticalSection (&(par_Connection->CriticalSection));
                if (par_Connection->ConnectionType) {
                    int ReadBytes = recv (par_Connection->Socket, (char*)&Ack, sizeof(Ack), 0);
-                   if ((ReadBytes != sizeof(Ack)) ||
-                       (Ack.Header.Command != RPC_API_PING_TO_CLINT_CMD)) {
-                       par_Connection->WaitFlag = 0;  // no Ack the connection are closed or broken
-                   }
+                   AckValid = ((ReadBytes == sizeof(Ack)) &&
+                               (Ack.Header.Command == RPC_API_PING_TO_CLINT_CMD));
                } else {
                    DWORD BytesRead;
-                   if (!ReadFile ((HANDLE)par_Connection->Socket, (char*)&Ack, (DWORD)sizeof(Ack), &BytesRead, NULL) ||
-                       (BytesRead != sizeof(Ack)) ||
-                       (Ack.Header.Command != RPC_API_PING_TO_CLINT_CMD)) {
-                       par_Connection->WaitFlag = 0;  // no Ack the connection are closed or broken
-                   }
+                   AckValid = (ReadFile ((HANDLE)par_Connection->Socket, (char*)&Ack, (DWORD)sizeof(Ack), &BytesRead, NULL) &&
+                               (BytesRead == sizeof(Ack)) &&
+                               (Ack.Header.Command == RPC_API_PING_TO_CLINT_CMD));
+               }
+               EnterCriticalSection (&(par_Connection->CriticalSection));
+               if (!AckValid) {
+                   par_Connection->WaitFlag = 0;  // no Ack the connection are closed or broken
                }
             } else {
                 // send a alive ping
@@ -1289,12 +1294,15 @@ void RemoteProcedureWaitForConnection(RPC_CONNECTION *par_Connection)
                 MEMSET(&Req, 0, sizeof(Req));
                 Req.Header.Command = RPC_API_PING_TO_CLINT_CMD;
                 Req.Header.StructSize = sizeof(Req);
+                // Release the CriticalSection around the blocking socket write as well (same deadlock class).
+                LeaveCriticalSection (&(par_Connection->CriticalSection));
                 if (par_Connection->ConnectionType) {
                     send((SOCKET)par_Connection->Socket, (char*)&Req, sizeof(Req), 0);
                 } else {
                     DWORD NumberOfBytesWritten;
                     WriteFile((HANDLE)par_Connection->Socket, (char*)&Req, (DWORD)sizeof(Req), &NumberOfBytesWritten, NULL);
                 }
+                EnterCriticalSection (&(par_Connection->CriticalSection));
                 par_Connection->WaitToReceiveAlivePingAck = 1;
             }
         }
