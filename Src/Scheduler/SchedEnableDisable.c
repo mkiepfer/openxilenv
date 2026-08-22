@@ -168,6 +168,7 @@ int ContinueRequestWithCallback(SCHEDULER_STOP_REQ *par_Requests, int par_FromTh
     int Ret = 0;
     int SignalToUser = 0;
     int Err = 0;
+    int CallbackImmediately = 0;
 
     if (s_main_ini_val.ConnectToRemoteMaster) {
         return Ret;
@@ -178,14 +179,21 @@ int ContinueRequestWithCallback(SCHEDULER_STOP_REQ *par_Requests, int par_FromTh
     fprintf (DisableEnableLog, "%06llu (%i) ContinueRequestWithCallback()\n", GetSchedulerInfos(0)->Cycle, __LINE__);
     fflush (DisableEnableLog);
 #endif
-    if (par_Requests->ContinueCallbackCount < (MAX_OPEN_REQUESTS - 1)) {
-        par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].FromThreadId = par_FromThreadId;
-        par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].Callback = par_Callback;
-        par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].Parameter = par_Parameter;
-        par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].FromUser = par_FromUser;
-        par_Requests->ContinueCallbackCount++;
+    if (par_Requests->SchedulerDisabledFlag) {
+        // Only queue the callback if the scheduler is stopped and will transition to
+        // running; if it is already running there is no wake-up to deliver the queued
+        // callback, so invoke it immediately to avoid the caller waiting forever.
+        if (par_Requests->ContinueCallbackCount < (MAX_OPEN_REQUESTS - 1)) {
+            par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].FromThreadId = par_FromThreadId;
+            par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].Callback = par_Callback;
+            par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].Parameter = par_Parameter;
+            par_Requests->ContinueCallbackElems[par_Requests->ContinueCallbackCount].FromUser = par_FromUser;
+            par_Requests->ContinueCallbackCount++;
+        } else {
+            Err = -1;
+        }
     } else {
-        Err = -1;
+        CallbackImmediately = 1;
     }
 
     switch (par_FromUser) {
@@ -223,6 +231,11 @@ int ContinueRequestWithCallback(SCHEDULER_STOP_REQ *par_Requests, int par_FromTh
     }
     LEAVE_CRITICAL_SECTION_LOG (&par_Requests->StopStartRequestCriticalSection);
     if (Err) ThrowError (1, "cannot add continue scheduler request callback not more than %i allowed", MAX_OPEN_REQUESTS);
+    if (CallbackImmediately) {
+        if (par_Callback != NULL) {
+            par_Callback(par_Parameter);
+        }
+    }
     if ((Ret == 1) && SignalToUser) {
         SchedulerStateChanged(1);  // change the button inside the control panel
     }
