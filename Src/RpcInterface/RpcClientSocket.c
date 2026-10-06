@@ -82,7 +82,21 @@ static int RpcThreadBuffersPos;
 #ifdef _WIN32
 static HANDLE RpcMutex;
 #else
-static pthread_mutex_t RpcMutex = PTHREAD_MUTEX_INITIALIZER;
+// A Windows mutex can be taken again by the thread that owns it. The transaction functions rely
+// on that: they hold the mutex while GetThreadReceiveBufferNo() locks it a second time. A default
+// pthread mutex deadlocks on the second lock, so this one has to be recursive.
+static pthread_mutex_t RpcMutex;
+static pthread_once_t RpcMutexOnce = PTHREAD_ONCE_INIT;
+
+static void InitRecursiveRpcMutex(void)
+{
+    pthread_mutexattr_t Attr;
+
+    pthread_mutexattr_init(&Attr);
+    pthread_mutexattr_settype(&Attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&RpcMutex, &Attr);
+    pthread_mutexattr_destroy(&Attr);
+}
 #endif
 static int RpcMutexInitFlag;
 
@@ -92,8 +106,8 @@ static void InitMutex()
         RpcMutexInitFlag = 1;
 #ifdef _WIN32
         RpcMutex = CreateMutex(NULL, 0, NULL);
-#else \
-    // nothing todo
+#else
+        pthread_once(&RpcMutexOnce, InitRecursiveRpcMutex);
 #endif
     }
 }
@@ -104,6 +118,8 @@ static void LockMutex()
     DWORD WaitResult = WaitForSingleObject (RpcMutex,    // handle to mutex
                                            INFINITE);    // no time-out interval
 #else
+    // Not every caller has been through InitMutex() (RemoteProcedureGetTransmitBuffer() runs first)
+    pthread_once(&RpcMutexOnce, InitRecursiveRpcMutex);
     pthread_mutex_lock(&RpcMutex);
 #endif
 }

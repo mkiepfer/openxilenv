@@ -3053,6 +3053,9 @@ int read_next_blackboard_vari (int index, char *ret_NameBuffer, int max_c)
 #endif
         return NOT_INITIALIZED;
     }
+    if (index < 0) {
+        return -1;   // a previous call already reported the end
+    }
 
     EnterCriticalSection (&BlackboardCriticalSection);
     // Increment index till the variable is found or the blackboard end is reached

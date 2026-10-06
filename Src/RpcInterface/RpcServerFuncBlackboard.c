@@ -409,7 +409,10 @@ static int RPCFunc_GetNextVari(RPC_CONNECTION *par_Connection, RPC_API_BASE_MESS
     ReturnLabelBuffer = (char*)Out + Out->OffsetLabel;
     Filter = (char*)In + In->OffsetFilter;
     if (In->Flag) par_Connection->GetNextIndex = 0;
-    while ((par_Connection->GetNextIndex = read_next_blackboard_vari (par_Connection->GetNextIndex, ReturnLabelBuffer, 512)) > 0) {
+    // The enumeration is over once read_next_blackboard_vari() has returned -1. Asking again
+    // without Flag would index blackboard[-1].
+    while ((par_Connection->GetNextIndex >= 0) &&
+           ((par_Connection->GetNextIndex = read_next_blackboard_vari (par_Connection->GetNextIndex, ReturnLabelBuffer, 512)) > 0)) {
         if (!Compare2StringsWithWildcards(ReturnLabelBuffer, Filter)) {
             Out->Header.StructSize += (int32_t)strlen(ReturnLabelBuffer);
             Out->Header.ReturnValue = 1;
